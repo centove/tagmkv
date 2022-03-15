@@ -281,7 +281,7 @@ class Window(QMainWindow):
         self.actionSaveFile.triggered.connect(self.SaveFile)
         self.actionExit.triggered.connect(self.close)
         ### Interface Widgets
-        self.FileList.itemClicked.connect(self.FileListClicked)
+#        self.FileList.itemClicked.connect(self.FileListClicked)
         self.FileList.currentItemChanged.connect(self.FileListChanged)
         ##
         self.MediaType.activated.connect(self.MediaTypeActivated)
@@ -291,7 +291,6 @@ class Window(QMainWindow):
         self.TVMetadataLookup.clicked.connect(self.TVMetadataLookupClicked)
         ##
         self.MediaTitle.editingFinished.connect(self.MediaTitleEditingFinished)
-        self.MediaDescription.textChanged.connect(self.MediaDescriptionTextChanged)
         self.MovieMetadataLookup.clicked.connect(self.MovieMetadataLookupClicked)
 
     def setup_media_types(self):
@@ -328,6 +327,9 @@ class Window(QMainWindow):
         tags = mediafile.metadata['format']['tags']
         ### Make sure we are marked as a TV Show media type.
         tags['media_type'] = 10
+        ## Show details
+        tv = TV()
+        show = tv.details(tmdb_id)
         ## Get the episode Season and Number
         tv_season  = int(self.TVSeason.value())
         tv_episode = int(self.TVEpisode.value())
@@ -335,29 +337,17 @@ class Window(QMainWindow):
         episode = Episode()
         episode_details = episode.details(tmdb_id, tv_season, tv_episode)
         ### Set tags
+        tags['summary'] = show['overview']
         tags['tmdb'] = 'tv/' + str(self.TMDBID.value())
         tags['title'] = episode_details['name']
         tags['description'] = episode_details['overview']
         tags['date_released'] = episode_details['air_date']
         ### Update UI
+        self.TVShowSummary.setText(tags['summary'])
         self.MediaDescription.setPlainText(tags['description'])
         self.MediaTitle.setText(tags['title'])
         d = QDate.fromString(tags['date_released'], 'yyyy-MM-dd')
         self.ReleasedDate.setDate(d)
-
-        # show_seasons = season.details(tmdb_id, tv_season)
-        # for season_episode in show_seasons.episodes:
-        #     if (season_episode['episode_number'] == int(self.TVEpisode.value())):
-        #         pprint (season_episode)
-        #         self.MediaTitle.clear()
-        #         self.MediaTitle.setText(season_episode['name'])
-        #         tags['title'] = season_episode['name']
-        #         tags['description'] = season_episode['overview']
-        #         tags['date_released'] = season_episode['air_date']
-        #         self.MediaDescription.clear()
-        #         self.MediaDescription.setPlainText(tags['description'])
-        #         d = QDate.fromString(tags['date_released'], 'yyyy-MM-dd')
-        #         self.ReleasedDate.setDate(d)
 
     ### https://developers.themoviedb.org/3/search/search-movies
     def GetMovieMetadata(self, mediafile):
@@ -398,15 +388,13 @@ class Window(QMainWindow):
 
     ### https://developers.themoviedb.org/3/search/search-tv-shows
     def GetTVMetadata(self, mediafile):
-        print ("Lookup tv metadata for {}".format(mediafile.filename))
+        self.StatusBar.showMessage("Lookup tv metadata for {}".format(mediafile.filename))
         tv = TV()
         tags = mediafile.metadata['format']['tags']
         show = tv.search(tags['show'])
         if len(show) == 1:
             tmdb_id = show[0]['id']
-            tags['summary'] = show[0]['overview']
             self.TMDBID.setValue(tmdb_id)
-            self.TVShowSummary.setPlainText(tags['summary'])
             self.getShowEpisode(tmdb_id)
         else:
             self.resultsDialog = SearchResults(show)
@@ -439,14 +427,35 @@ class Window(QMainWindow):
         return metadata
 
     def ResetTVShow(self):
+        tags = self.getMediaFile().metadata['format']['tags']
         self.TVShow.clear()
-        self.TVSeason.setValue(0)
-        self.TVEpisode.setValue(0)
+        ## Special handling of the season/episode spinboxes
+        if 'season' not in tags:
+            self.TVSeason.setValue(0)
+        if 'episode' not in tags:
+            self.TVEpisode.setValue(0)
         self.TVShowSummary.clear()
+
+    def UpdateTVShow(self):
+        mediafile = self.getMediaFile()
+        tags = mediafile.metadata['format']['tags']
+        if 'summary' in tags:
+            self.TVShowSummary.setPlainText(tags['summary'])
+        if 'show' in tags:
+            self.TVShow.setText(tags['show'])
+        else:
+            self.TVShow.clear()
+        if 'season' in tags:
+            self.TVSeason.setValue(int(tags['season']))
+        else:
+            self.TVSeason.setValue(0)
+        if 'episode' in tags:
+            self.TVEpisode.setValue(int(tags['episode']))
+        else:
+            self.TVEpisode.setValue(0)
 
     def ProcessFile(self, mediafile):
         self.StatusBar.showMessage("Load previously analyzed file {}".format(mediafile.filename))
-        self.TMDBID.clear()
         if 'tags' in mediafile.metadata['format']:
             tags = mediafile.metadata['format']['tags']
         else:
@@ -454,12 +463,10 @@ class Window(QMainWindow):
             ### the encoder tag
             tags = dict()
             mediafile.metadata['format']['tags'] = tags
-
         ### No media_type default to a 'movie' media_type
         media_type = 9
         if 'media_type' not in tags:
             tags['media_type'] = 9
-            self.ResetTVShow()
         else:
             media_type = int(tags['media_type'])
         self.MediaType.setCurrentIndex(self.MediaType.findData(int(tags['media_type'])))
@@ -467,22 +474,9 @@ class Window(QMainWindow):
             ### Set TV Show specific tags
             self.TVShowGroup.setEnabled(True)
             self.MovieMetadataLookup.setEnabled(False)
-            ### Summary used to summarize the TV Show
-            if 'summary' in tags:
-                self.TVShowSummary.setPlainText(tags['summary'])
-            if 'show' in tags:
-                self.TVShow.setText(tags['show'])
-            else:
-                self.TVShow.clear()
-            if 'season' in tags:
-                self.TVSeason.setValue(int(tags['season']))
-            else:
-                self.TVSeason.setValue(0)
-            if 'episode' in tags: 
-                self.TVEpisode.setValue(int(tags['episode']))
-            else:
-                self.TVEpisode.setValue(0)
+            self.UpdateTVShow()
         else:
+            self.ResetTVShow()
             self.TVShowGroup.setEnabled(False)
             self.MovieMetadataLookup.setEnabled(True)
 
@@ -530,6 +524,8 @@ class Window(QMainWindow):
     ### Interface actions
     def FileListChanged(self, item):
         mediafile = item.data(Qt.UserRole)
+        self.ResetTVShow()
+        self.UpdateTVShow()
         if mediafile.filename == self.current_file:
             return
         else:
@@ -541,7 +537,10 @@ class Window(QMainWindow):
             self.ProcessFile(mediafile)
 
     def FileListClicked(self, item):
+        print ("FileListClicked")
         mediafile = item.data(Qt.UserRole)
+        self.ResetTVShow()
+        self.UpdateTVShow()
         if mediafile.filename == self.current_file:
             return 
         self.current_file = mediafile.filename
@@ -567,14 +566,11 @@ class Window(QMainWindow):
                 tags['episode'] = tv_show['episode']
             if 'title' in tv_show: 
                 tags['title'] = tv_show['title']
-            ### Update UI
-            self.TVShow.setText(tags['show'])
-            self.TVSeason.setValue(int(tags['season']))
-            self.TVEpisode.setValue(int(tags['episode']))
-            self.MediaTitle.setText(tags['title'])
+            self.UpdateTVShow()
             self.TVShowGroup.setEnabled(True)
             self.MovieMetadataLookup.setEnabled(False)
         else:
+            self.ResetTVShow()
             self.TVShowGroup.setEnabled(False)
             self.MovieMetadataLookup.setEnabled(True)
             tags['media_type'] = 9
@@ -612,9 +608,6 @@ class Window(QMainWindow):
         tags = mediafile.metadata['format']['tags']
         tags['title'] = title
         return 
-
-    def MediaDescriptionTextChanged(self):
-        return
 
     def MovieMetadataLookupClicked(self):
         mediafile = self.getMediaFile()
