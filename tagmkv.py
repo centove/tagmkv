@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-import sys
+from __future__ import print_function, unicode_literals
+
 from PyQt5.QtWidgets import *
 from PyQt5 import QtCore, QtGui
 from PyQt5.QtCore import *
@@ -10,6 +11,9 @@ from enum import Enum
 from pprint import pprint
 from lxml import etree
 
+import sys
+import argparse
+import logging
 import subprocess
 import re
 import os
@@ -257,7 +261,12 @@ class Window(QMainWindow):
     def __init__(self, parent=None):
         super().__init__(parent)
         loadUi('ui/main_window.ui', self)
-        # Open File list
+        logging.basicConfig(encoding='utf-8', level=logging.INFO)
+
+
+        self.logger = logging.getLogger("MainWindow")
+        self.logger.setLevel(logging.INFO)
+
         self.media_files = []
         self.current_file = ''
         self.current_path = os.environ['HOME']
@@ -273,6 +282,13 @@ class Window(QMainWindow):
         self.TVShowGroup.setEnabled(False)
         self.MediaType.setCurrentIndex(self.MediaType.findData(9))
         return
+
+    def setLogLevel(self, level):
+        numeric_level = getattr(logging, level.upper(), None)
+        if not isinstance(numeric_level, int):
+            raise ValueError('Invalid log level: %s' % level)
+        self.logger.setLevel(numeric_level)
+        return 
 
     def connect_signals(self):
         ### File Menu
@@ -297,7 +313,8 @@ class Window(QMainWindow):
         for key, value in media_types.items():
             self.MediaType.addItem(value,key)
 
-    def SetMediaType(self,media_type):
+    def SetMediaType(self, media_type):
+        self.logger.debug("SetMediaType")
         mediafile = self.getMediaFile()
         tags = mediafile.metadata['format']['tags']
         tags['media_type'] = int(self.MediaType.currentData())
@@ -305,6 +322,7 @@ class Window(QMainWindow):
 
     def title_from_filename(self, mediafile):
         ## set the metadata title tag from the filename 
+        self.logger.debug("title_from_filename")
         ftitle = CleanName(mediafile.filename)
         tags = mediafile.metadata['format']['tags']
         tags['title'] = ftitle
@@ -312,9 +330,11 @@ class Window(QMainWindow):
     ### Simplistic attempt to get the name, season, episode and episode_title from the filename
     ### it expects things in the following format:
     ### <show> S<season>E<episode> - <title>.[xxx]
-    ### (?P<series>.*)\sS(?P<season>\d+)[E|\s|x]?(?P<episode>\d+)\W+(?P<title>.*)\.\w{3}
+    ### <show> <season>x<episode> <title>.[xxx]
+    ### (?P<series>.*)\s[Ss]?(?P<season>\d+)[Ee|\s|x]?(?P<episode>\d+)\W+(?P<title>.*)\.\w{3}$
     def tv_show_from_filename(self, mediafile):
-        pattern = re.compile('(?P<series>.*)\sS(?P<season>\d+)[E|\s|x]?(?P<episode>\d+)\W+(?P<title>.*)\.\w{3}')
+        self.logger.debug("tv_show_from_filename (%s)", mediafile.filename)
+        pattern = re.compile('(?P<series>.*)\s[Ss]?(?P<season>\d+)[Ee|\s|x]?(?P<episode>\d+)\W+(?P<title>.*)\.\w{3}$')
         result = pattern.search(mediafile.filename)
         return result.groupdict()
 
@@ -323,6 +343,7 @@ class Window(QMainWindow):
     ######################################################################
     ### https://developers.themoviedb.org/3/tv-seasons/get-tv-season-details
     def getShowEpisode(self, tmdb_id):
+        self.logger.info("getShowEpisode %d", tmdb_id)
         mediafile = self.getMediaFile()
         tags = mediafile.metadata['format']['tags']
         ### Make sure we are marked as a TV Show media type.
@@ -351,10 +372,12 @@ class Window(QMainWindow):
 
     ### https://developers.themoviedb.org/3/search/search-movies
     def GetMovieMetadata(self, mediafile):
+        self.logger.debug("GetMovieMetadata (%s)", mediafile.filename)
         tmdb = Movie()
         tags = mediafile.metadata['format']['tags']
         movies = tmdb.search(tags['title'])
         if len(movies) == 1:
+            self.logger.debug("Got one match for the title (%s)", tags['title'])
             tmdb_id = movies[0]['id']
             self.TMDBID.setValue(int(tmdb_id))
             self.MediaDescription.setPlainText(movies[0]['overview'])
@@ -363,12 +386,13 @@ class Window(QMainWindow):
             d = QDate.fromString(movies[0]['release_date'], 'yyyy-MM-dd')
             self.ReleasedDate.setDate(d)
         else:
-            print ("Open Dialog of search results.")
+            self.logger.debug("Open Dialog for multiple search results")
             self.resultsDialog = SearchResults(movies)
             self.resultsDialog.buttonBox.accepted.connect(self.SelectedMovieMetadata)
 
     ### https://developers.themoviedb.org/3/movies/get-movie-details
     def SelectedMovieMetadata(self):
+        self.logger.debug("SelectedMovieMetadata")
         mediafile = self.getMediaFile()
         item = self.resultsDialog.getSelectedResult()
         selected_movie = item.text()
@@ -388,6 +412,7 @@ class Window(QMainWindow):
 
     ### https://developers.themoviedb.org/3/search/search-tv-shows
     def GetTVMetadata(self, mediafile):
+        self.logger.debug("GetTVMetadata (%s)", mediafile.filename)
         self.StatusBar.showMessage("Lookup tv metadata for {}".format(mediafile.filename))
         tv = TV()
         tags = mediafile.metadata['format']['tags']
@@ -401,6 +426,7 @@ class Window(QMainWindow):
             self.resultsDialog.buttonBox.accepted.connect(self.SelectedTVMetadata)
 
     def SelectedTVMetadata(self):
+        self.logger.debug("SelectedTVMetadata")
         item = self.resultsDialog.getSelectedResult()
         selected_show = item.text()
         tmdb_id = item.data(Qt.UserRole)['id']
@@ -408,7 +434,8 @@ class Window(QMainWindow):
         self.getShowEpisode(tmdb_id)
 
     def AnalyzeFile(self, mediafile):
-        self.StatusBar.showMessage("Analyzing file {}".format(self.current_file))
+        self.StatusBar.showMessage("Analyzing file {}".format(mediafile.filename))
+        self.logger.debug("AnalyzeFile (%s)", mediafile.filename)
         try:
             output = subprocess.run(['ffprobe', mediafile.fullname,
                                      '-v', 'error', 
@@ -427,6 +454,7 @@ class Window(QMainWindow):
         return metadata
 
     def ResetTVShow(self):
+        self.logger.debug("ResetTVShow")
         tags = self.getMediaFile().metadata['format']['tags']
         self.TVShow.clear()
         ## Special handling of the season/episode spinboxes
@@ -439,6 +467,7 @@ class Window(QMainWindow):
     def UpdateTVShow(self):
         mediafile = self.getMediaFile()
         tags = mediafile.metadata['format']['tags']
+        self.logger.debug("UpdateTVShow (%s)", mediafile.filename)
         if 'summary' in tags:
             self.TVShowSummary.setPlainText(tags['summary'])
         if 'show' in tags:
@@ -456,6 +485,7 @@ class Window(QMainWindow):
 
     def ProcessFile(self, mediafile):
         self.StatusBar.showMessage("Load previously analyzed file {}".format(mediafile.filename))
+        self.logger.debug("ProcessFile (%s)", mediafile.filename)
         if 'tags' in mediafile.metadata['format']:
             tags = mediafile.metadata['format']['tags']
         else:
@@ -471,11 +501,15 @@ class Window(QMainWindow):
             media_type = int(tags['media_type'])
         self.MediaType.setCurrentIndex(self.MediaType.findData(int(tags['media_type'])))
         if media_type == 10:
+            self.logger.debug("media_type = TVshow")
             ### Set TV Show specific tags
             self.TVShowGroup.setEnabled(True)
             self.MovieMetadataLookup.setEnabled(False)
+            self.logger.debug("UpdateUI")
+            self.ResetTVShow()
             self.UpdateTVShow()
         else:
+            self.logger.debug("media_type = other")
             self.ResetTVShow()
             self.TVShowGroup.setEnabled(False)
             self.MovieMetadataLookup.setEnabled(True)
@@ -506,11 +540,14 @@ class Window(QMainWindow):
             self.TMDBID.clear()
 
     def addMediaFile(self, filename):
+        self.logger.debug("addMediaFile (%s)", filename)
         fname = os.path.basename(filename)
         for mediafile in self.media_files:
             if mediafile.filename == fname:
+                self.logger.debug("Existing mediafile (%s), not adding", filename)
                 return mediafile
         else:
+            self.logger.debug("New mediafile, append to list (%s)", filename)
             mediafile = MediaFile(os.path.basename(filename))
             mediafile.dirname = os.path.dirname(filename)
             mediafile.fullname = filename
@@ -519,26 +556,23 @@ class Window(QMainWindow):
         return mediafile
 
     def getMediaFile(self):
+        self.logger.debug("getMediaFile")
         return self.FileList.currentItem().data(Qt.UserRole)
 
     ### Interface actions
     def FileListChanged(self, item):
         mediafile = item.data(Qt.UserRole)
-        self.ResetTVShow()
-        self.UpdateTVShow()
-        if mediafile.filename == self.current_file:
-            return
-        else:
-            mediafile = item.data(Qt.UserRole)
-            self.current_file = mediafile.filename
-            self.current_path = mediafile.dirname
-            self.CurrentDirectory.setText(self.current_path)
-            self.CurrentFile.setText(self.current_file)
-            self.ProcessFile(mediafile)
+        self.logger.debug("FileListChanged (%s)", mediafile.filename)
+        mediafile = item.data(Qt.UserRole)
+        self.current_file = mediafile.filename
+        self.current_path = mediafile.dirname
+        self.CurrentDirectory.setText(self.current_path)
+        self.CurrentFile.setText(self.current_file)
+        self.ProcessFile(mediafile)
 
     def FileListClicked(self, item):
-        print ("FileListClicked")
         mediafile = item.data(Qt.UserRole)
+        self.logger.debug("FileListClicked (%s)", mediafile.filename)
         self.ResetTVShow()
         self.UpdateTVShow()
         if mediafile.filename == self.current_file:
@@ -549,12 +583,12 @@ class Window(QMainWindow):
         self.CurrentFile.setText(self.current_file)
         self.ProcessFile(mediafile)
 
-    def MediaTypeActivated(self,index):
+    def MediaTypeActivated(self, index):
+        self.logger.debug("MediaTypeActivated (%d)", index)
         media_type = int(self.MediaType.itemData(index))
         mediafile = self.getMediaFile()
         tags = mediafile.metadata['format']['tags']
         if media_type == 10:
-            self.ResetTVShow()
             tags['media_type'] = 10
             ## Attempt to autodetect info from the filename and set tags appropriately
             tv_show = self.tv_show_from_filename(mediafile)
@@ -566,6 +600,8 @@ class Window(QMainWindow):
                 tags['episode'] = tv_show['episode']
             if 'title' in tv_show: 
                 tags['title'] = tv_show['title']
+            self.logger.debug("UpdateUI")
+            self.ResetTVShow()
             self.UpdateTVShow()
             self.TVShowGroup.setEnabled(True)
             self.MovieMetadataLookup.setEnabled(False)
@@ -615,12 +651,14 @@ class Window(QMainWindow):
 
     ### File Menu actions
     def OpenFile(self):
+        self.logger.debug("OpenFile")
         QApplication.setOverrideCursor(Qt.WaitCursor)
         selected_row = 0
         if len(self.media_files) == 0:
             selected_row = -1 
         self.files, _ = QFileDialog.getOpenFileNames(self, 'Open Media files', self.current_path, 'Media Files (*.mkv *.mp4 *.m4a *.avi *.ogg)')
         for file in self.files:
+            self.logger.debug("SelectedFile: (%s)", os.path.basename(file))
             mediafile = self.addMediaFile(file)
             item = QListWidgetItem(os.path.basename(file))
             item.setData(Qt.UserRole, mediafile)
@@ -743,7 +781,11 @@ class Window(QMainWindow):
         return temp_file_path
 
 if __name__ == '__main__':
+    parser = argparse.ArgumentParser(description='Tag Media files with metadata from the Internet.')
+    parser.add_argument('--log', type=str, dest='loglevel', default="INFO")
+    args = parser.parse_args()
     app = QApplication(sys.argv)
     win = Window()
+    win.setLogLevel(args.loglevel)
     win.show()
     sys.exit(app.exec())
