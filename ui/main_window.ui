@@ -334,6 +334,32 @@
       </item>
      </layout>
     </widget>
+    <widget class="QLabel" name="GenreTagLabel">
+     <property name="geometry">
+      <rect>
+       <x>20</x>
+       <y>590</y>
+       <width>91</width>
+       <height>19</height>
+      </rect>
+     </property>
+     <property name="text">
+      <string>Genre Tag</string>
+     </property>
+    </widget>
+    <widget class="QLineEdit" name="GenreTag">
+     <property name="geometry">
+      <rect>
+       <x>110</x>
+       <y>590</y>
+       <width>531</width>
+       <height>27</height>
+      </rect>
+     </property>
+     <property name="readOnly">
+      <bool>true</bool>
+     </property>
+    </widget>
     <widget class="QWidget" name="">
      <property name="geometry">
       <rect>
@@ -348,7 +374,10 @@
        <number>0</number>
       </property>
       <item>
-       <layout class="QHBoxLayout" name="horizontalLayout" stretch="1,5">
+       <layout class="QHBoxLayout" name="horizontalLayout" stretch="1,6">
+        <property name="sizeConstraint">
+         <enum>QLayout::SetDefaultConstraint</enum>
+        </property>
         <property name="topMargin">
          <number>4</number>
         </property>
@@ -374,9 +403,9 @@
        </layout>
       </item>
       <item>
-       <layout class="QHBoxLayout" name="horizontalLayout_8">
+       <layout class="QHBoxLayout" name="horizontalLayout_8" stretch="1,0,1">
         <item>
-         <layout class="QHBoxLayout" name="DateLayout" stretch="0,0">
+         <layout class="QHBoxLayout" name="DateLayout" stretch="5,1">
           <property name="topMargin">
            <number>4</number>
           </property>
@@ -388,11 +417,17 @@
           </property>
           <item>
            <widget class="QLabel" name="ReleasedDateLabel">
+            <property name="sizePolicy">
+             <sizepolicy hsizetype="Expanding" vsizetype="Preferred">
+              <horstretch>1</horstretch>
+              <verstretch>0</verstretch>
+             </sizepolicy>
+            </property>
             <property name="text">
-             <string>Date Released</string>
+             <string>Date </string>
             </property>
             <property name="alignment">
-             <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+             <set>Qt::AlignLeading|Qt::AlignLeft|Qt::AlignVCenter</set>
             </property>
            </widget>
           </item>
@@ -415,7 +450,7 @@
           </property>
           <property name="sizeHint" stdset="0">
            <size>
-            <width>40</width>
+            <width>164</width>
             <height>20</height>
            </size>
           </property>
@@ -460,6 +495,32 @@
          <widget class="QPlainTextEdit" name="MediaDescription"/>
         </item>
        </layout>
+      </item>
+     </layout>
+    </widget>
+    <widget class="QWidget" name="">
+     <property name="geometry">
+      <rect>
+       <x>110</x>
+       <y>620</y>
+       <width>181</width>
+       <height>151</height>
+      </rect>
+     </property>
+     <layout class="QVBoxLayout" name="verticalLayout_3">
+      <item>
+       <widget class="QLabel" name="GenresLabel">
+        <property name="text">
+         <string>Genres</string>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QListWidget" name="Genres">
+        <property name="selectionMode">
+         <enum>QAbstractItemView::MultiSelection</enum>
+        </property>
+       </widget>
       </item>
      </layout>
     </widget>

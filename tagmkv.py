@@ -8,9 +8,9 @@ from PyQt5.QtGui import *
 from PyQt5.uic import loadUi
 from tmdbv3api import *
 from enum import Enum
-from pprint import pprint
 from lxml import etree
 
+import pprint
 import sys
 import argparse
 import logging
@@ -229,7 +229,8 @@ class SearchResults(QDialog):
         self.tmdb = TMDb()
         self.tmdb.language = 'en'
         self.tmdb_config = Configuration().info()
-        self.search_results = results 
+        self.search_results = results
+        self.ReleaseDate.clear() 
         for res in results:
             if 'name' in res:
                 list_item = QListWidgetItem(res['name'])
@@ -249,6 +250,14 @@ class SearchResults(QDialog):
         self.Poster.load(QUrl("about:blank"))
         if 'overview' in result:
             self.Summary.setText(result['overview'])
+        if 'release_date' in result:
+            date = result['release_date']
+        else:
+            date = result['first_air_date']
+
+        d = QDate.fromString(date, 'yyyy-MM-dd')
+        self.ReleaseDate.setDate(d)
+
         if 'poster_path' in result:
             if result['poster_path'] is not None:
                 poster_url = self.tmdb_config['images']['secure_base_url'] + 'w185' + result['poster_path']
@@ -263,7 +272,6 @@ class Window(QMainWindow):
         loadUi('ui/main_window.ui', self)
         logging.basicConfig(encoding='utf-8', level=logging.INFO)
 
-
         self.logger = logging.getLogger("MainWindow")
         self.logger.setLevel(logging.INFO)
 
@@ -274,6 +282,8 @@ class Window(QMainWindow):
         self.tmdb.language = 'en'
         config = Configuration()
         self.tmdb_config = config.info()
+        self.tv_genres = self.get_tv_genres()
+        self.movie_genres = self.get_movie_genres()
         self.setup_media_types()
         self.setupUi()
         self.connect_signals()
@@ -297,7 +307,6 @@ class Window(QMainWindow):
         self.actionSaveFile.triggered.connect(self.SaveFile)
         self.actionExit.triggered.connect(self.close)
         ### Interface Widgets
-#        self.FileList.itemClicked.connect(self.FileListClicked)
         self.FileList.currentItemChanged.connect(self.FileListChanged)
         ##
         self.MediaType.activated.connect(self.MediaTypeActivated)
@@ -307,6 +316,7 @@ class Window(QMainWindow):
         self.TVMetadataLookup.clicked.connect(self.TVMetadataLookupClicked)
         ##
         self.MediaTitle.editingFinished.connect(self.MediaTitleEditingFinished)
+        self.Genres.clicked.connect(self.GenreListClicked)
         self.MovieMetadataLookup.clicked.connect(self.MovieMetadataLookupClicked)
 
     def setup_media_types(self):
@@ -338,12 +348,122 @@ class Window(QMainWindow):
         result = pattern.search(mediafile.filename)
         return result.groupdict()
 
+    def get_tv_genres(self):
+        self.logger.debug("get_tv_genres")
+        tmdb = Genre()
+        return tmdb.tv_list()
+
+    def get_movie_genres(self):
+        self.logger.debug('get_movie_genres')
+        tmdb = Genre()
+        return tmdb.movie_list()
+
+    def UpdateGenre(self, genre_tag, media_type):
+        self.logger.debug("UpdateGenre %s", genre_tag)
+        self.Genres.clear()
+        self.GenreTag.setText(genre_tag)
+        if media_type == '10':
+            for tv_genre in self.tv_genres:
+                self.logger.debug("TV Genre %s", tv_genre)
+                item = QListWidgetItem(tv_genre['name'])
+                self.Genres.addItem(item)
+        else:
+            for movie_genre in self.movie_genres:
+                self.logger.debug("Movie Genre %s", movie_genre)
+                item = QListWidgetItem(movie_genre['name'])
+                self.Genres.addItem(item)
+        genres = self.unpack_media_genres(genre_tag)
+        for genre in genres:
+            self.logger.debug("Genre: %s", genre)
+            matches = self.Genres.findItems(genre, Qt.MatchContains)
+            for match in matches:
+                match.setSelected(True)
+
+
+    def pack_media_genres(self, tags):
+        self.logger.debug("pack_media_genres")
+        genres = list()
+        for genre in tags:
+            self.logger.debug("Genre %s", genre['name'])
+            genres.append(genre['name'])
+        genre_tag = '|'.join(genres)
+        self.logger.debug("genre_tag %s", genre_tag)
+        return (genre_tag)
+
+    def unpack_media_genres(self, genre_tag):
+        self.logger.debug("unpack_media_genres %s", genre_tag)
+        genres = genre_tag.split('|')
+        return genres
+
     ###
     ### TMDB functions
     ######################################################################
+
+    ### https://developers.themoviedb.org/3/search/search-movies
+    def FindMovieMetadata(self, mediafile):
+        self.logger.debug("Search for movie metadata (%s)", mediafile.filename)
+        tmdb = Movie()
+        tags = mediafile.metadata['format']['tags']
+        try:
+            results = tmdb.search(tags['title'])
+        except TMDBException:
+            self.StatusBar.showMessage("Movie '%s' not found", tags['title'])
+            return
+        if len(results) == 1:
+            ## One result, must be what we were looking for.
+            self.logger.debug("One result %s", result[0]['id'])
+            tmdb_id = result[0]['id']
+            self.GetMovieMetadata(tmdb_id)
+        else:
+            self.logger.debug("Got %s results, open selection dialog", len(results))
+            self.resultsDialog = SearchResults(results)
+            self.resultsDialog.buttonBox.accepted.connect(self.SelectedMovieMetadata)
+
+    #### https://developers.themoviedb.org/3/movies/get-movie-details  
+    def GetMovieMetadata(self, tmdb_id):
+        self.logger.debug("GetMovieMetadata (%s)", tmdb_id)
+        mediafile = self.getMediaFile()
+        tags = mediafile.metadata['format']['tags']
+
+        tmdb = Movie()
+        movie = tmdb.details(tmdb_id)
+        ## Set the tags
+        tags['tmdb'] = 'movie/' + str(tmdb_id)
+        tags['description'] = movie['overview']
+        tags['date_released'] = movie['release_date']
+        tags['genre'] = self.pack_media_genres(movie['genres'])
+        ## Refresh the UI
+        self.TMDBID.setValue(tmdb_id)
+        self.MediaDescription.setPlainText(movie['overview'])
+        d = QDate.fromString(tags['date_released'], 'yyyy-MM-dd')
+        self.ReleasedDate.setDate(d)
+        self.UpdateGenre(tags['genre'], tags['media_type'])
+
+    def SelectedMovieMetadata(self):
+        self.logger.debug("SelectedMovieMetadata")
+        mediafile = self.getMediaFile()
+        item = self.resultsDialog.getSelectedResult()
+        selected_movie = item.text()
+        tmdb_id = item.data(Qt.UserRole)['id']
+        self.GetMovieMetadata(tmdb_id)
+
+        # movie = Movie()
+        # details = movie.details(tmdb_id)
+        # ### Set tags
+        # tags = mediafile.metadata['format']['tags']
+        # tags['tmdb'] = 'movie/' + str(tmdb_id)
+        # tags['description'] = details['overview']
+        # tags['date_released'] = details['release_date']
+        # if 'genres' in details:
+        #     tags['genre'] = self.pack_media_genres(details['genres'])
+        # ### Update UI
+        # self.MediaDescription.setPlainText(details['overview'])
+        # d = QDate.fromString(tags['date_released'], 'yyyy-MM-dd')
+        # self.ReleasedDate.setDate(d)
+
     ### https://developers.themoviedb.org/3/tv-seasons/get-tv-season-details
     def getShowEpisode(self, tmdb_id):
-        self.logger.info("getShowEpisode %d", tmdb_id)
+        self.logger.debug("getShowEpisode %d", tmdb_id)
         mediafile = self.getMediaFile()
         tags = mediafile.metadata['format']['tags']
         ### Make sure we are marked as a TV Show media type.
@@ -351,75 +471,39 @@ class Window(QMainWindow):
         ## Show details
         tv = TV()
         show = tv.details(tmdb_id)
-        ## Get the episode Season and Number
+        ## Gepisode Season and Number
         tv_season  = int(self.TVSeason.value())
         tv_episode = int(self.TVEpisode.value())
         ## Get the details
         episode = Episode()
         episode_details = episode.details(tmdb_id, tv_season, tv_episode)
         ### Set tags
+        tags['show'] = show['name']
         tags['summary'] = show['overview']
         tags['tmdb'] = 'tv/' + str(self.TMDBID.value())
         tags['title'] = episode_details['name']
         tags['description'] = episode_details['overview']
         tags['date_released'] = episode_details['air_date']
+        if 'genres' in show:
+            tags['genre'] = self.pack_media_genres(show['genres'])
         ### Update UI
         self.TVShowSummary.setText(tags['summary'])
         self.MediaDescription.setPlainText(tags['description'])
         self.MediaTitle.setText(tags['title'])
-        d = QDate.fromString(tags['date_released'], 'yyyy-MM-dd')
-        self.ReleasedDate.setDate(d)
-
-    ### https://developers.themoviedb.org/3/search/search-movies
-    def GetMovieMetadata(self, mediafile):
-        self.logger.debug("GetMovieMetadata (%s)", mediafile.filename)
-        tmdb = Movie()
-        tags = mediafile.metadata['format']['tags']
-        movies = tmdb.search(tags['title'])
-        if len(movies) == 1:
-            self.logger.debug("Got one match for the title (%s)", tags['title'])
-            tmdb_id = movies[0]['id']
-            self.TMDBID.setValue(int(tmdb_id))
-            self.MediaDescription.setPlainText(movies[0]['overview'])
-            tags['description'] = movies[0]['overview']
-            tags['date_released'] = movies[0]['release_date']
-            d = QDate.fromString(movies[0]['release_date'], 'yyyy-MM-dd')
-            self.ReleasedDate.setDate(d)
-        else:
-            self.logger.debug("Open Dialog for multiple search results")
-            self.resultsDialog = SearchResults(movies)
-            self.resultsDialog.buttonBox.accepted.connect(self.SelectedMovieMetadata)
-
-    ### https://developers.themoviedb.org/3/movies/get-movie-details
-    def SelectedMovieMetadata(self):
-        self.logger.debug("SelectedMovieMetadata")
-        mediafile = self.getMediaFile()
-        item = self.resultsDialog.getSelectedResult()
-        selected_movie = item.text()
-        tmdb_id = item.data(Qt.UserRole)['id']
         self.TMDBID.setValue(tmdb_id)
-        movie = Movie()
-        details = movie.details(tmdb_id)
-        ### Set tags
-        tags = mediafile.metadata['format']['tags']
-        tags['tmdb'] = 'movie/' + str(tmdb_id)
-        tags['description'] = details['overview']
-        tags['date_released'] = details['release_date']
-        ### Update UI
-        self.MediaDescription.setPlainText(details['overview'])
         d = QDate.fromString(tags['date_released'], 'yyyy-MM-dd')
         self.ReleasedDate.setDate(d)
+        self.UpdateGenre(tags['genre'], tags['media_type'])
 
     ### https://developers.themoviedb.org/3/search/search-tv-shows
-    def GetTVMetadata(self, mediafile):
-        self.logger.debug("GetTVMetadata (%s)", mediafile.filename)
+    def FindTVMetadata(self, mediafile):
+        self.logger.debug("FindTVMetadata (%s)", mediafile.filename)
         self.StatusBar.showMessage("Lookup tv metadata for {}".format(mediafile.filename))
         tv = TV()
         tags = mediafile.metadata['format']['tags']
         show = tv.search(tags['show'])
         if len(show) == 1:
             tmdb_id = show[0]['id']
-            self.TMDBID.setValue(tmdb_id)
             self.getShowEpisode(tmdb_id)
         else:
             self.resultsDialog = SearchResults(show)
@@ -430,7 +514,6 @@ class Window(QMainWindow):
         item = self.resultsDialog.getSelectedResult()
         selected_show = item.text()
         tmdb_id = item.data(Qt.UserRole)['id']
-        self.TMDBID.setValue(tmdb_id)
         self.getShowEpisode(tmdb_id)
 
     def AnalyzeFile(self, mediafile):
@@ -532,6 +615,10 @@ class Window(QMainWindow):
             self.MediaDescription.setPlainText(tags['description'])
         else:
             self.MediaDescription.clear()
+        if 'genre' in tags:
+            self.UpdateGenre(tags['genre'], tags['media_type'])
+        else:
+            self.Genres.clear()
 
         if 'tmdb' in tags:
             prefix, tmdb_id = tags['tmdb'].split('/')
@@ -559,24 +646,30 @@ class Window(QMainWindow):
         self.logger.debug("getMediaFile")
         return self.FileList.currentItem().data(Qt.UserRole)
 
+    ###
     ### Interface actions
+    ###
+    def GenreListClicked(self, index):
+        item = self.Genres.itemFromIndex(index)
+        self.logger.debug("GenreListClicked %s", item.text())
+        selected_items = self.Genres.selectedItems()
+        genres = list()
+        # Build new genre dict 
+        for selected_item in selected_items:
+            genres.append({'name': selected_item.text()})
+        genre_tag = self.pack_media_genres(genres)
+        self.logger.debug("New genre_tag %s", genre_tag)
+        ## Set the new genre_tag
+        mediafile = self.getMediaFile()
+        tags = mediafile.metadata['format']['tags']
+        tags['genre'] = genre_tag
+        ## Update the UI
+        self.UpdateGenre(genre_tag, tags['media_type'])
+
     def FileListChanged(self, item):
         mediafile = item.data(Qt.UserRole)
         self.logger.debug("FileListChanged (%s)", mediafile.filename)
         mediafile = item.data(Qt.UserRole)
-        self.current_file = mediafile.filename
-        self.current_path = mediafile.dirname
-        self.CurrentDirectory.setText(self.current_path)
-        self.CurrentFile.setText(self.current_file)
-        self.ProcessFile(mediafile)
-
-    def FileListClicked(self, item):
-        mediafile = item.data(Qt.UserRole)
-        self.logger.debug("FileListClicked (%s)", mediafile.filename)
-        self.ResetTVShow()
-        self.UpdateTVShow()
-        if mediafile.filename == self.current_file:
-            return 
         self.current_file = mediafile.filename
         self.current_path = mediafile.dirname
         self.CurrentDirectory.setText(self.current_path)
@@ -636,7 +729,7 @@ class Window(QMainWindow):
 
     def TVMetadataLookupClicked(self):
         mediafile = self.getMediaFile()
-        self.GetTVMetadata(mediafile)
+        self.FindTVMetadata(mediafile)
 
     def MediaTitleEditingFinished(self):
         title = self.MediaTitle.text()
@@ -647,7 +740,7 @@ class Window(QMainWindow):
 
     def MovieMetadataLookupClicked(self):
         mediafile = self.getMediaFile()
-        self.GetMovieMetadata(mediafile)
+        self.FindMovieMetadata(mediafile)
 
     ### File Menu actions
     def OpenFile(self):
@@ -678,11 +771,10 @@ class Window(QMainWindow):
             try:
                 output = subprocess.run(['mkvpropedit', '--gui-mode', str(mediafile.fullname), '--tags', 'global:' + str(xml_file)])
             except subprocess.CalledProcessError as err:
-                print ('Error: {}'.format(str(err)))
+                self.logger.error('Error: %s', err)
                 self.StatusBar.showMessage("ERROR: MKV File tag's not written '{}'".format(str(err)))
-            print ("Remove {}".format(xml_file))
             if (os.path.isfile(xml_file)):
-                print ("Delete file {}".format(xml_file))
+                self.logger.debug("Delete temp file %s", xml_file)
                 os.remove(xml_file)
         return 0
 
@@ -713,7 +805,7 @@ class Window(QMainWindow):
         https://www.matroska.org/technical/tagging.html
     '''
     def SimpleTag(self, tag):
-        print ("Encode {}".format(tag))
+        self.logger.debug("Encode %s", tag)
         for k,v in tag.items():
             simple = etree.Element('Simple')
             name = etree.Element('Name')
@@ -726,6 +818,7 @@ class Window(QMainWindow):
 
 
     def CreateXML(self, mediafile):
+        self.logger.debug("CreateXML tag file")
         metadata = mediafile.metadata['format']['tags']
         root = etree.Element('Tags')
         tag  = etree.Element('Tag')
@@ -772,6 +865,8 @@ class Window(QMainWindow):
             tag.append(self.SimpleTag({'description': metadata['description']}))
         if 'date_released' in metadata:
             tag.append(self.SimpleTag({'date_released': metadata['date_released']}))
+        if 'genre' in metadata:
+            tag.append(self.SimpleTag({'genre': metadata['genre']}))
         if 'tmdb' in metadata:
             tag.append(self.SimpleTag({'TMDB': metadata['tmdb']}))
         _, temp_file_path = tempfile.mkstemp()
