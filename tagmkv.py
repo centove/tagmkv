@@ -332,11 +332,10 @@ class Window(QMainWindow):
         self.TVShow.editingFinished.connect(self.TVShowEditingFinished)
         self.TVSeason.valueChanged.connect(self.TVSeasonChanged)
         self.TVEpisode.valueChanged.connect(self.TVEpisodeChanged)
-        self.TVMetadataLookup.clicked.connect(self.TVMetadataLookupClicked)
+        self.MetadataLookup.clicked.connect(self.MetadataLookupClicked)
         ##
         self.MediaTitle.editingFinished.connect(self.MediaTitleEditingFinished)
         self.Genres.clicked.connect(self.GenreListClicked)
-        self.MovieMetadataLookup.clicked.connect(self.MovieMetadataLookupClicked)
 
     def setup_media_types(self):
         for key, value in media_types.items():
@@ -363,9 +362,19 @@ class Window(QMainWindow):
     ### (?P<series>.*)\s[Ss]?(?P<season>\d+)[Ee|\s|x]?(?P<episode>\d+)\W+(?P<title>.*)\.\w{3}$
     def tv_show_from_filename(self, mediafile):
         self.logger.debug("tv_show_from_filename (%s)", mediafile.filename)
+        self.StatusBar.showMessage("tv_show_from_filename (%s)" % mediafile.filename)
         pattern = re.compile('(?P<series>.*)\s[Ss]?(?P<season>\d+)[Ee|\s|x]?(?P<episode>\d+)\W+(?P<title>.*)\.\w{3}$')
         result = pattern.search(mediafile.filename)
-        return result.groupdict()
+        if result:
+            self.logger.debug("tv_show_from_filename (full match) %s", result.groupdict())
+            return result.groupdict()
+        pat = re.compile('(?P<series>.*)\s[Ss]?(?P<season>\d+)[Ee|x]?(?P<episode>\d+)\.\w{3}')
+        result = pat.search(mediafile.filename)
+        if result:
+            self.logger.debug("tv_show_from_filename (no title) %s", result.groupdict())
+            return result.groupdict()
+        else:
+            return None 
 
     def get_tv_genres(self):
         self.logger.debug("get_tv_genres")
@@ -601,7 +610,7 @@ class Window(QMainWindow):
         os.remove(temp_file_path)
         ## Build the tags from the XML data, with only the tags we are interested in to replace the broken ffprobe
         ## parsing of nested tags.
-        ## it _does not_ handle:
+        ## ffprobe (avcodec?) _does not_ handle:
         ##  Actor Name
         ##      Character
         ##  Actor Name
@@ -686,7 +695,6 @@ class Window(QMainWindow):
             self.logger.debug("media_type = TVshow")
             ### Set TV Show specific tags
             self.TVShowGroup.setEnabled(True)
-            self.MovieMetadataLookup.setEnabled(False)
             self.logger.debug("UpdateUI")
             self.ResetTVShow()
             self.UpdateTVShow()
@@ -694,7 +702,6 @@ class Window(QMainWindow):
             self.logger.debug("media_type = other")
             self.ResetTVShow()
             self.TVShowGroup.setEnabled(False)
-            self.MovieMetadataLookup.setEnabled(True)
 
         ### Set release date
         if 'date_released' in tags:
@@ -800,15 +807,14 @@ class Window(QMainWindow):
                 tags['episode'] = tv_show['episode']
             if 'title' in tv_show: 
                 tags['title'] = tv_show['title']
+            pprint.pprint(tags)
             self.logger.debug("UpdateUI")
             self.ResetTVShow()
             self.UpdateTVShow()
             self.TVShowGroup.setEnabled(True)
-            self.MovieMetadataLookup.setEnabled(False)
         else:
             self.ResetTVShow()
             self.TVShowGroup.setEnabled(False)
-            self.MovieMetadataLookup.setEnabled(True)
             tags['media_type'] = 9
         self.SetMediaType(mediafile)
         return 
@@ -834,9 +840,14 @@ class Window(QMainWindow):
         tags['episode'] = tv_episode
         return 
 
-    def TVMetadataLookupClicked(self):
+    def MetadataLookupClicked(self):
         mediafile = self.getMediaFile()
-        self.FindTVMetadata(mediafile)
+        media_type = int(self.MediaType.itemData(self.MediaType.currentIndex()))
+        self.logger.info("media_type: {}".format(media_type))
+        if media_type == 10:
+            self.FindTVMetadata(mediafile)
+        else:
+            self.FindMovieMetadata(mediafile)
 
     def MediaTitleEditingFinished(self):
         title = self.MediaTitle.text()
@@ -844,10 +855,6 @@ class Window(QMainWindow):
         tags = mediafile.metadata['format']['tags']
         tags['title'] = title
         return 
-
-    def MovieMetadataLookupClicked(self):
-        mediafile = self.getMediaFile()
-        self.FindMovieMetadata(mediafile)
 
     ### File Menu actions
     def OpenFile(self):
@@ -876,7 +883,8 @@ class Window(QMainWindow):
         xml_file = self.CreateXML(mediafile)
         if xml_file:
             try:
-                output = subprocess.run(['mkvpropedit', '--gui-mode', str(mediafile.fullname), '--tags', 'global:' + str(xml_file)])
+                output = subprocess.run(['mkvpropedit', '--gui-mode', str(mediafile.fullname), '--tags', 
+                                        'global:' + str(xml_file)], capture_output=True)
             except subprocess.CalledProcessError as err:
                 self.logger.error('Error: %s', err)
                 self.StatusBar.showMessage("ERROR: MKV File tag's not written '{}'".format(str(err)))
