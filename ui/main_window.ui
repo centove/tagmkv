@@ -360,6 +360,16 @@
       <bool>true</bool>
      </property>
     </widget>
+    <widget class="QTableView" name="CastView">
+     <property name="geometry">
+      <rect>
+       <x>200</x>
+       <y>640</y>
+       <width>451</width>
+       <height>192</height>
+      </rect>
+     </property>
+    </widget>
     <widget class="QWidget" name="">
      <property name="geometry">
       <rect>
@@ -501,7 +511,7 @@
     <widget class="QWidget" name="">
      <property name="geometry">
       <rect>
-       <x>110</x>
+       <x>10</x>
        <y>620</y>
        <width>181</width>
        <height>151</height>

@@ -8,8 +8,8 @@ from PyQt5.QtGui import *
 from PyQt5.uic import loadUi
 from tmdbv3api import *
 from enum import Enum
-from lxml import etree
 
+import lxml.etree as ET
 import pprint
 import sys
 import argparse
@@ -20,7 +20,7 @@ import os
 import json
 import unicodedata
 import tempfile
-
+import xmltodict
 '''
 Media Type  Stik
 Normal (Music)  1
@@ -189,6 +189,15 @@ def CleanName(name):
 #        cleanedName += extension
     return (titlecase(cleanedName))
 
+def lowercase_keys(obj):
+  if isinstance(obj, dict):
+    obj = {key.lower(): value for key, value in obj.items()}
+    for key, value in obj.items():         
+      if isinstance(value, list):
+        for idx, item in enumerate(value):
+          value[idx] = lowercase_keys(item)
+      obj[key] = lowercase_keys(value)
+  return obj 
 
 ### Class Property
 ####################################################
@@ -267,6 +276,12 @@ class SearchResults(QDialog):
 ### Main Window
 ##########################################################################
 class Window(QMainWindow):
+
+    ## Stuff to handle extracting the tag info out of the XML format mkv uses.
+    tag_xpath = '/Tags/Tag/Simple/Name[string() = $name]/..'
+    metadata_tags = ("SHOW", "SUMMARY", "SEASON", "EPISODE", 
+                     "TITLE", "DESCRIPTION", "TMDB", "MEDIA_TYPE", "GENRE", "ACTOR", "media_type")
+
     def __init__(self, parent=None):
         super().__init__(parent)
         loadUi('ui/main_window.ui', self)
@@ -275,6 +290,10 @@ class Window(QMainWindow):
         self.logger = logging.getLogger("MainWindow")
         self.logger.setLevel(logging.INFO)
 
+        self.cast_model = QStandardItemModel()
+        self.cast_model.setHorizontalHeaderLabels(['Actor', 'Character'])
+        self.CastView.setModel(self.cast_model)
+        self.CastView.horizontalHeader().setSectionResizeMode(1)
         self.media_files = []
         self.current_file = ''
         self.current_path = os.environ['HOME']
@@ -361,6 +380,7 @@ class Window(QMainWindow):
     def UpdateGenre(self, genre_tag, media_type):
         self.logger.debug("UpdateGenre %s", genre_tag)
         self.Genres.clear()
+        self.GenreTag.clear()
         self.GenreTag.setText(genre_tag)
         if media_type == '10':
             for tv_genre in self.tv_genres:
@@ -398,7 +418,7 @@ class Window(QMainWindow):
     ###
     ### TMDB functions
     ######################################################################
-
+    #
     ### https://developers.themoviedb.org/3/search/search-movies
     def FindMovieMetadata(self, mediafile):
         self.logger.debug("Search for movie metadata (%s)", mediafile.filename)
@@ -411,8 +431,8 @@ class Window(QMainWindow):
             return
         if len(results) == 1:
             ## One result, must be what we were looking for.
-            self.logger.debug("One result %s", result[0]['id'])
-            tmdb_id = result[0]['id']
+            self.logger.debug("One result %s", results[0]['id'])
+            tmdb_id = results[0]['id']
             self.GetMovieMetadata(tmdb_id)
         else:
             self.logger.debug("Got %s results, open selection dialog", len(results))
@@ -426,15 +446,27 @@ class Window(QMainWindow):
         tags = mediafile.metadata['format']['tags']
 
         tmdb = Movie()
-        movie = tmdb.details(tmdb_id)
+        movie = tmdb.details(tmdb_id, append_to_response='credits')
         ## Set the tags
+        tags['title'] = movie['title']
         tags['tmdb'] = 'movie/' + str(tmdb_id)
         tags['description'] = movie['overview']
         tags['date_released'] = movie['release_date']
         tags['genre'] = self.pack_media_genres(movie['genres'])
+        credits = movie['credits']
+        tmdb_cast = credits['cast']
+        tags_cast = tags['cast']
+        tags_cast.clear()
+        self.cast_model.removeRows(0, self.cast_model.rowCount())
+        for cast_member in tmdb_cast:
+            row = (QStandardItem(cast_member['name']), QStandardItem(cast_member['character']))
+            tags_cast.append({'actor': cast_member['name'], 'character': cast_member['character']})
+            self.cast_model.appendRow(row)
+
         ## Refresh the UI
         self.TMDBID.setValue(tmdb_id)
-        self.MediaDescription.setPlainText(movie['overview'])
+        self.MediaTitle.setText(tags['title'])
+        self.MediaDescription.setPlainText(tags['description'])
         d = QDate.fromString(tags['date_released'], 'yyyy-MM-dd')
         self.ReleasedDate.setDate(d)
         self.UpdateGenre(tags['genre'], tags['media_type'])
@@ -476,7 +508,7 @@ class Window(QMainWindow):
         tv_episode = int(self.TVEpisode.value())
         ## Get the details
         episode = Episode()
-        episode_details = episode.details(tmdb_id, tv_season, tv_episode)
+        episode_details = episode.details(tmdb_id, tv_season, tv_episode, append_to_response="credits")
         ### Set tags
         tags['show'] = show['name']
         tags['summary'] = show['overview']
@@ -486,6 +518,15 @@ class Window(QMainWindow):
         tags['date_released'] = episode_details['air_date']
         if 'genres' in show:
             tags['genre'] = self.pack_media_genres(show['genres'])
+        credits = episode_details['credits']
+        tmdb_cast = credits['cast']
+        tags_cast = tags['cast']
+        tags_cast.clear()
+        self.cast_model.removeRows(0, self.cast_model.rowCount())
+        for cast_member in tmdb_cast:
+            row = (QStandardItem(cast_member['name']), QStandardItem(cast_member['character']))
+            tags_cast.append({'actor': cast_member['name'], 'character': cast_member['character']})
+            self.cast_model.appendRow(row)
         ### Update UI
         self.TVShowSummary.setText(tags['summary'])
         self.MediaDescription.setPlainText(tags['description'])
@@ -499,15 +540,22 @@ class Window(QMainWindow):
     def FindTVMetadata(self, mediafile):
         self.logger.debug("FindTVMetadata (%s)", mediafile.filename)
         self.StatusBar.showMessage("Lookup tv metadata for {}".format(mediafile.filename))
-        tv = TV()
         tags = mediafile.metadata['format']['tags']
-        show = tv.search(tags['show'])
-        if len(show) == 1:
-            tmdb_id = show[0]['id']
-            self.getShowEpisode(tmdb_id)
+        ### We have an ID, go ahead and fetch that ID
+        if 'tmdb' in tags:
+            _,tmdb_id = tags['tmdb'].split('/')
+            self.logger.debug("Previously set tmdb_id {}, get those details.".format(tmdb_id))
+            self.getShowEpisode(int(tmdb_id))
         else:
-            self.resultsDialog = SearchResults(show)
-            self.resultsDialog.buttonBox.accepted.connect(self.SelectedTVMetadata)
+            self.logger.debug("FindTVMetaData() search for {}".format(tags['show']))
+            tv = TV()
+            show = tv.search(tags['show'])
+            if len(show) == 1:
+                tmdb_id = show[0]['id']
+                self.getShowEpisode(tmdb_id)
+            else:
+                self.resultsDialog = SearchResults(show)
+                self.resultsDialog.buttonBox.accepted.connect(self.SelectedTVMetadata)
 
     def SelectedTVMetadata(self):
         self.logger.debug("SelectedTVMetadata")
@@ -515,6 +563,14 @@ class Window(QMainWindow):
         selected_show = item.text()
         tmdb_id = item.data(Qt.UserRole)['id']
         self.getShowEpisode(tmdb_id)
+
+    ####
+    # ffmpeg can handle 99% of this
+    # ffprobe -v error -of default=noprint_wrappers=0 -print_format json -show_format -show_streams -show_chapters -i <file>
+    # 
+    # mvkextract can also pull this out but in xml.
+    # mkvextract <file> tags --global-tags tags.xml
+    #
 
     def AnalyzeFile(self, mediafile):
         self.StatusBar.showMessage("Analyzing file {}".format(mediafile.filename))
@@ -531,9 +587,51 @@ class Window(QMainWindow):
             self.StatusBar.showMessage('ERROR: File is unreadable')
             return 1
         metadata = json.loads(output.stdout)
+
+        _, temp_file_path = tempfile.mkstemp(suffix='.xml')
+        try:
+            output = subprocess.run(['mkvextract', mediafile.fullname,
+                                    'tags',
+                                    '--global-tags',
+                                    temp_file_path], text=True, check=True, capture_output=True, universal_newlines=True)
+        except subprocess.CalledProcessError as Err:
+            self.StatusBar.showMessage('ERROR: File is unreadable')
+            return 1
+        root = ET.parse(temp_file_path).getroot()
+        os.remove(temp_file_path)
+        ## Build the tags from the XML data, with only the tags we are interested in to replace the broken ffprobe
+        ## parsing of nested tags.
+        ## it _does not_ handle:
+        ##  Actor Name
+        ##      Character
+        ##  Actor Name
+        ##      Character
+        ## ...
+        ##     
+        xml_tags = dict()
+        xml_tags['cast'] = []
+        actors = xml_tags['cast']
+        for tag in self.metadata_tags:
+            elem = root.xpath(self.tag_xpath, name=tag)
+            if elem:
+                for item in elem:
+                    for sub_elem in item.getchildren():
+                        if sub_elem.text == 'ACTOR':
+                            parent = item.xpath('Simple/String')
+                            value = item.xpath('String')
+                            actor = {str(tag): value[0].text }
+                            if parent:
+                                if parent[0] is not None:
+                                    actor['CHARACTER'] = parent[0].text
+                            xml_tags['cast'].append(actor)
+                            break
+                        if sub_elem.tag == 'String':
+                            xml_tags[str(tag)] = sub_elem.text
+        metadata['format']['tags'] = lowercase_keys(xml_tags)
+
         ## Matroska metadata puts the keys in UPPERCASE while other formats have them in lower case
         ## lets standardize on lowercase.
-        metadata['format']['tags'] = {k.casefold(): v for k, v in metadata['format']['tags'].items()}
+        #metadata['format']['tags'] = {k.casefold(): v for k, v in metadata['format']['tags'].items()}
         return metadata
 
     def ResetTVShow(self):
@@ -546,6 +644,7 @@ class Window(QMainWindow):
         if 'episode' not in tags:
             self.TVEpisode.setValue(0)
         self.TVShowSummary.clear()
+        self.cast_model.removeRows(0, self.cast_model.rowCount())
 
     def UpdateTVShow(self):
         mediafile = self.getMediaFile()
@@ -615,16 +714,24 @@ class Window(QMainWindow):
             self.MediaDescription.setPlainText(tags['description'])
         else:
             self.MediaDescription.clear()
+        self.GenreTag.clear()
+        self.Genres.clear()
         if 'genre' in tags:
             self.UpdateGenre(tags['genre'], tags['media_type'])
-        else:
-            self.Genres.clear()
 
         if 'tmdb' in tags:
             prefix, tmdb_id = tags['tmdb'].split('/')
             self.TMDBID.setValue(int(tmdb_id))
         else:
             self.TMDBID.clear()
+        if 'cast' in tags:
+            for member in tags['cast']:
+                if 'actor' in member and 'character' in member:
+                    row = (QStandardItem(member['actor']), QStandardItem(member['character']))
+                    self.cast_model.appendRow(row)
+                elif 'actor' in member:
+                    row = (QStandardItem(member['actor']))
+                    self.cast_model.appendRow(row)               
 
     def addMediaFile(self, filename):
         self.logger.debug("addMediaFile (%s)", filename)
@@ -807,11 +914,11 @@ class Window(QMainWindow):
     def SimpleTag(self, tag):
         self.logger.debug("Encode %s", tag)
         for k,v in tag.items():
-            simple = etree.Element('Simple')
-            name = etree.Element('Name')
+            simple = ET.Element('Simple')
+            name = ET.Element('Name')
             name.text = str(k).upper()
             simple.append(name)
-            string = etree.Element('String')
+            string = ET.Element('String')
             string.text = str(v)
             simple.append(string)
         return simple
@@ -820,15 +927,15 @@ class Window(QMainWindow):
     def CreateXML(self, mediafile):
         self.logger.debug("CreateXML tag file")
         metadata = mediafile.metadata['format']['tags']
-        root = etree.Element('Tags')
-        tag  = etree.Element('Tag')
+        root = ET.Element('Tags')
+        tag  = ET.Element('Tag')
         root.append(tag)
-        targets = etree.Element('Targets')
+        targets = ET.Element('Targets')
         tag.append(targets)
         ## Set the media_type
         if 'media_type' not in metadata:
             tags['media_type'] = 9
-        targettypevalue = etree.Element('TargetTypeValue')
+        targettypevalue = ET.Element('TargetTypeValue')
         targettypevalue.text = '70'
         targets.append(targettypevalue)
         simple = self.SimpleTag({'media_type': metadata['media_type']})
@@ -840,21 +947,21 @@ class Window(QMainWindow):
             tag.append(self.SimpleTag({'summary': metadata['summary']}))
         # Season tags
         if 'season' in metadata:
-            tag = etree.Element('Tag')
+            tag = ET.Element('Tag')
+            targets = ET.Element('Targets')
             root.append(tag)
-            targets = etree.Element('Targets')
             tag.append(targets)
-            targettypevalue = etree.Element('TargetTypeValue')
+            targettypevalue = ET.Element('TargetTypeValue')
             targettypevalue.text = '60'
             targets.append(targettypevalue)
             tag.append(self.SimpleTag({'season': metadata['season']}))
 
         # Now we have the episode/movie detail
-        tag = etree.Element('Tag')
+        tag = ET.Element('Tag')
+        targets = ET.Element('Targets')
         root.append(tag)
-        targets = etree.Element('Targets')
         tag.append(targets)
-        targettypevalue = etree.Element('TargetTypeValue')
+        targettypevalue = ET.Element('TargetTypeValue')
         targettypevalue.text = '50'
         targets.append(targettypevalue)
         if 'episode' in metadata:
@@ -869,9 +976,19 @@ class Window(QMainWindow):
             tag.append(self.SimpleTag({'genre': metadata['genre']}))
         if 'tmdb' in metadata:
             tag.append(self.SimpleTag({'TMDB': metadata['tmdb']}))
+        ## Add cast members
+        for actor in metadata['cast']:
+            if 'actor' in actor:
+                cast_member = self.SimpleTag({'actor': actor['actor']})
+            if 'character' in actor:
+                cast_member.append(self.SimpleTag({'character': actor['character']}))
+                tag.append(cast_member)
+
         _, temp_file_path = tempfile.mkstemp()
+        # print(ET.tostring(root, xml_declaration=True, encoding = 'utf-8', pretty_print=True,
+        #                   doctype = '<!DOCTYPE Tags SYSTEM "matroskatags.dtd">').decode('utf-8'))
         with open(temp_file_path, 'w') as file:
-            file.write(etree.tostring(root, xml_declaration=True, encoding = 'utf-8', pretty_print=True,
+            file.write(ET.tostring(root, xml_declaration=True, encoding = 'utf-8', pretty_print=True,
                               doctype='<!DOCTYPE Tags SYSTEM "matroskatags.dtd">').decode('utf-8'))
         return temp_file_path
 
