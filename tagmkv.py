@@ -325,6 +325,9 @@ class Window(QMainWindow):
         self.actionCloseFile.triggered.connect(self.CloseFile)
         self.actionSaveFile.triggered.connect(self.SaveFile)
         self.actionExit.triggered.connect(self.close)
+        ### Toolbar
+        self.actionOpenFileTool.triggered.connect(self.OpenFile)
+        self.actionSaveFileTool.triggered.connect(self.SaveFile)
         ### Interface Widgets
         self.FileList.currentItemChanged.connect(self.FileListChanged)
         ##
@@ -332,10 +335,11 @@ class Window(QMainWindow):
         self.TVShow.editingFinished.connect(self.TVShowEditingFinished)
         self.TVSeason.valueChanged.connect(self.TVSeasonChanged)
         self.TVEpisode.valueChanged.connect(self.TVEpisodeChanged)
-        self.MetadataLookup.clicked.connect(self.MetadataLookupClicked)
+        self.TMDBID.valueChanged.connect(self.TMDBIDChanged)
         ##
         self.MediaTitle.editingFinished.connect(self.MediaTitleEditingFinished)
         self.Genres.clicked.connect(self.GenreListClicked)
+        self.MetadataLookup.clicked.connect(self.MetadataLookupClicked)
 
     def setup_media_types(self):
         for key, value in media_types.items():
@@ -433,10 +437,19 @@ class Window(QMainWindow):
         self.logger.debug("Search for movie metadata (%s)", mediafile.filename)
         tmdb = Movie()
         tags = mediafile.metadata['format']['tags']
-        try:
-            results = tmdb.search(tags['title'])
-        except TMDBException:
-            self.StatusBar.showMessage("Movie '%s' not found", tags['title'])
+        tmdb_id = 0
+        if 'tmdb' in tags:
+            _, tmdb_id = tags['tmdb'].split('/')
+            self.logger.debug("tmdb_id = {}".format(tmdb_id))
+        if tmdb_id:
+            self.GetMovieMetadata(tmdb_id)
+        if 'title' in tags:
+            try:
+                results = tmdb.search(tags['title'])
+            except TMDBException:
+                self.StatusBar.showMessage("Movie '%s' not found", tags['title'])
+                return
+        else:
             return
         if len(results) == 1:
             ## One result, must be what we were looking for.
@@ -471,9 +484,9 @@ class Window(QMainWindow):
             row = (QStandardItem(cast_member['name']), QStandardItem(cast_member['character']))
             tags_cast.append({'actor': cast_member['name'], 'character': cast_member['character']})
             self.cast_model.appendRow(row)
-
+        self.logger.info("tmdb_id = {}".format(tmdb_id))
         ## Refresh the UI
-        self.TMDBID.setValue(tmdb_id)
+        self.TMDBID.setValue(int(tmdb_id))
         self.MediaTitle.setText(tags['title'])
         self.MediaDescription.setPlainText(tags['description'])
         d = QDate.fromString(tags['date_released'], 'yyyy-MM-dd')
@@ -553,6 +566,7 @@ class Window(QMainWindow):
         ### We have an ID, go ahead and fetch that ID
         if 'tmdb' in tags:
             _,tmdb_id = tags['tmdb'].split('/')
+            self.logger.info("tmdb_id = {}".format(tmdb_id))
             self.logger.debug("Previously set tmdb_id {}, get those details.".format(tmdb_id))
             self.getShowEpisode(int(tmdb_id))
         else:
@@ -580,11 +594,14 @@ class Window(QMainWindow):
     # mvkextract can also pull this out but in xml.
     # mkvextract <file> tags --global-tags tags.xml
     #
+    # return the metadata or an empty dict if unable to parse the file.
 
     def AnalyzeFile(self, mediafile):
         self.StatusBar.showMessage("Analyzing file {}".format(mediafile.filename))
         self.logger.debug("AnalyzeFile (%s)", mediafile.filename)
+        metadata = dict()
         try:
+            self.logger.debug("ffprobe (%s)", mediafile.filename)
             output = subprocess.run(['ffprobe', mediafile.fullname,
                                      '-v', 'error', 
                                      '-hide_banner', 
@@ -594,50 +611,62 @@ class Window(QMainWindow):
                                      ], text=True, check=True, capture_output=True, universal_newlines=True)
         except subprocess.CalledProcessError as Err:
             self.StatusBar.showMessage('ERROR: File is unreadable')
-            return 1
-        metadata = json.loads(output.stdout)
-
+            self.logger.debug("AnalyzeFIle - Unable to parse (%s)", mediafile.filename)
+            return metadata
+        else:
+            self.logger.debug("AnalyzeFile - ffprobe metadata parsed")
+            metadata = json.loads(output.stdout)
         _, temp_file_path = tempfile.mkstemp(suffix='.xml')
         try:
+            self.logger.debug("AnalyzeFile - mkvextract (%s)", mediafile.filename)
             output = subprocess.run(['mkvextract', mediafile.fullname,
                                     'tags',
                                     '--global-tags',
                                     temp_file_path], text=True, check=True, capture_output=True, universal_newlines=True)
         except subprocess.CalledProcessError as Err:
-            self.StatusBar.showMessage('ERROR: File is unreadable')
-            return 1
-        root = ET.parse(temp_file_path).getroot()
-        os.remove(temp_file_path)
-        ## Build the tags from the XML data, with only the tags we are interested in to replace the broken ffprobe
-        ## parsing of nested tags.
-        ## ffprobe (avcodec?) _does not_ handle:
-        ##  Actor Name
-        ##      Character
-        ##  Actor Name
-        ##      Character
-        ## ...
-        ##     
-        xml_tags = dict()
-        xml_tags['cast'] = []
-        actors = xml_tags['cast']
-        for tag in self.metadata_tags:
-            elem = root.xpath(self.tag_xpath, name=tag)
-            if elem:
-                for item in elem:
-                    for sub_elem in item.getchildren():
-                        if sub_elem.text == 'ACTOR':
-                            parent = item.xpath('Simple/String')
-                            value = item.xpath('String')
-                            actor = {str(tag): value[0].text }
-                            if parent:
-                                if parent[0] is not None:
-                                    actor['CHARACTER'] = parent[0].text
-                            xml_tags['cast'].append(actor)
-                            break
-                        if sub_elem.tag == 'String':
-                            xml_tags[str(tag)] = sub_elem.text
-        metadata['format']['tags'] = lowercase_keys(xml_tags)
-
+            self.StatusBar.showMessage('ERROR: File is unreadable or not a mkv file')
+            return metadata
+        try:
+            root = ET.parse(temp_file_path).getroot()
+        except ET.XMLSyntaxError as err:
+            self.StatusBar.showMessage("No Tag data found in {}".format(mediafile.filename))
+        else:
+            os.remove(temp_file_path)
+            ## Build the tags from the XML data, with only the tags we are interested in to replace the broken ffprobe
+            ## parsing of nested tags.
+            ## ffprobe (avcodec?) _does not_ handle:
+            ##  Actor Name
+            ##      Character
+            ##  Actor Name
+            ##      Character
+            ## ...
+            ##     
+            xml_tags = dict()
+            xml_tags['cast'] = []
+            actors = xml_tags['cast']
+            for tag in self.metadata_tags:
+                elem = root.xpath(self.tag_xpath, name=tag)
+                if elem:
+                    for item in elem:
+                        for sub_elem in item.getchildren():
+                            if sub_elem.text == 'ACTOR':
+                                parent = item.xpath('Simple/String')
+                                value = item.xpath('String')
+                                actor = {str(tag): value[0].text }
+                                if parent:
+                                    if parent[0] is not None:
+                                        actor['CHARACTER'] = parent[0].text
+                                xml_tags['cast'].append(actor)
+                                break
+                            if sub_elem.tag == 'String':
+                                xml_tags[str(tag)] = sub_elem.text
+            metadata['format']['tags'] = lowercase_keys(xml_tags)
+        finally:
+            xml_tags = metadata['format']['tags']
+            if 'cast' not in xml_tags:
+                xml_tags['cast'] = []
+            metadata['format']['tags'] = lowercase_keys(xml_tags)
+        self.logger.debug("Tags {}".format(pprint.pformat(metadata['format']['tags'])))
         ## Matroska metadata puts the keys in UPPERCASE while other formats have them in lower case
         ## lets standardize on lowercase.
         #metadata['format']['tags'] = {k.casefold(): v for k, v in metadata['format']['tags'].items()}
@@ -807,7 +836,6 @@ class Window(QMainWindow):
                 tags['episode'] = tv_show['episode']
             if 'title' in tv_show: 
                 tags['title'] = tv_show['title']
-            pprint.pprint(tags)
             self.logger.debug("UpdateUI")
             self.ResetTVShow()
             self.UpdateTVShow()
@@ -840,10 +868,21 @@ class Window(QMainWindow):
         tags['episode'] = tv_episode
         return 
 
+    def TMDBIDChanged(self):
+        mediafile = self.getMediaFile()
+        media_type = int(self.MediaType.itemData(self.MediaType.currentIndex()))
+        tags = mediafile.metadata['format']['tags']
+        tmdb_id = self.TMDBID.value()
+        if media_type == 10:
+            tags['tmdb'] = 'tv/'+str(tmdb_id)
+        else:
+            tags['tmdb'] = 'movie/'+str(tmdb_id)
+        self.logger.debug("tmdb_id set to {}".format(tags['tmdb']))
+
     def MetadataLookupClicked(self):
         mediafile = self.getMediaFile()
         media_type = int(self.MediaType.itemData(self.MediaType.currentIndex()))
-        self.logger.info("media_type: {}".format(media_type))
+        self.logger.debug("media_type: {}".format(media_type))
         if media_type == 10:
             self.FindTVMetadata(mediafile)
         else:
@@ -891,6 +930,13 @@ class Window(QMainWindow):
             if (os.path.isfile(xml_file)):
                 self.logger.debug("Delete temp file %s", xml_file)
                 os.remove(xml_file)
+        filetitle = os.path.splitext(mediafile.filename)
+        try:
+            output = subprocess.run(['mkvpropedit', '--gui-mode', str(mediafile.fullname), '--edit', 'info', '--set',
+                                     'title=' + filetitle[0]], capture_output=True)
+        except subprocess.CalledProcessError as err:
+            self.logger.error('Error: %s', err)
+        self.StatusBar.showMessage("File '{}' tags saved.".format(mediafile.filename))
         return 0
 
     def CloseFile(self):
