@@ -7,6 +7,7 @@ from PyQt5.QtCore import *
 from PyQt5.QtGui import *
 from PyQt5.uic import loadUi
 from tmdbv3api import *
+from tmdbv3api.exceptions import TMDbException
 from enum import Enum
 
 import lxml.etree as ET
@@ -234,7 +235,7 @@ class MediaFile():
 class SearchResults(QDialog):
     def __init__(self, results):
         super(SearchResults, self).__init__()
-        self.w = loadUi('ui/tv_lookup_results.ui', self)
+        self.w = loadUi(sys.path[0] + '/ui/tv_lookup_results.ui', self)
         self.tmdb = TMDb()
         self.tmdb.language = 'en'
         self.tmdb_config = Configuration().info()
@@ -284,7 +285,7 @@ class Window(QMainWindow):
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        loadUi('ui/main_window.ui', self)
+        loadUi(sys.path[0] + '/ui/main_window.ui', self)
         logging.basicConfig(encoding='utf-8', level=logging.INFO)
 
         self.logger = logging.getLogger("MainWindow")
@@ -435,22 +436,25 @@ class Window(QMainWindow):
     ### https://developers.themoviedb.org/3/search/search-movies
     def FindMovieMetadata(self, mediafile):
         self.logger.debug("Search for movie metadata (%s)", mediafile.filename)
-        tmdb = Movie()
+        search = Search()
         tags = mediafile.metadata['format']['tags']
+        self.logger.debug("Tags {}".format(pprint.pformat(tags)))
+
         tmdb_id = 0
         if 'tmdb' in tags:
             _, tmdb_id = tags['tmdb'].split('/')
             self.logger.debug("tmdb_id = {}".format(tmdb_id))
         if tmdb_id:
+            self.logger.debug("GetMetadata by id {}".format(tmdb_id))
             self.GetMovieMetadata(tmdb_id)
-        if 'title' in tags:
+            return
+        elif 'title' in tags:
+            self.logger.debug("FindMovieByTitle {}".format(tags['title']))
             try:
-                results = tmdb.search(tags['title'])
+                results = search.movies(tags['title'], adult=True)
             except TMDBException:
                 self.StatusBar.showMessage("Movie '%s' not found", tags['title'])
                 return
-        else:
-            return
         if len(results) == 1:
             ## One result, must be what we were looking for.
             self.logger.debug("One result %s", results[0]['id'])
@@ -466,25 +470,35 @@ class Window(QMainWindow):
         self.logger.debug("GetMovieMetadata (%s)", tmdb_id)
         mediafile = self.getMediaFile()
         tags = mediafile.metadata['format']['tags']
+        tags['tmdb'] = 'movie/' + str(tmdb_id)
 
         tmdb = Movie()
         movie = tmdb.details(tmdb_id, append_to_response='credits')
+
         ## Set the tags
         tags['title'] = movie['title']
-        tags['tmdb'] = 'movie/' + str(tmdb_id)
         tags['description'] = movie['overview']
         tags['date_released'] = movie['release_date']
         tags['genre'] = self.pack_media_genres(movie['genres'])
         credits = movie['credits']
         tmdb_cast = credits['cast']
-        tags_cast = tags['cast']
-        tags_cast.clear()
+        if 'cast' in tags:
+            tags_cast = tags['cast']
+            tags_cast.clear()
+        else:
+            tags['cast'] = []
+            tags_cast = tags['cast']
+            tags_cast.clear()
+
         self.cast_model.removeRows(0, self.cast_model.rowCount())
         for cast_member in tmdb_cast:
             row = (QStandardItem(cast_member['name']), QStandardItem(cast_member['character']))
             tags_cast.append({'actor': cast_member['name'], 'character': cast_member['character']})
             self.cast_model.appendRow(row)
-        self.logger.info("tmdb_id = {}".format(tmdb_id))
+        self.logger.debug("tmdb_id = {}".format(tmdb_id))
+        mediafile.metadata['format']['tags'] = tags
+        print (tags)
+
         ## Refresh the UI
         self.TMDBID.setValue(int(tmdb_id))
         self.MediaTitle.setText(tags['title'])
