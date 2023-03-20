@@ -6,469 +6,462 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>1146</width>
-    <height>961</height>
+    <width>935</width>
+    <height>886</height>
    </rect>
   </property>
   <property name="windowTitle">
-   <string>Tag Media</string>
+   <string>Tag MKV</string>
   </property>
   <widget class="QWidget" name="centralwidget">
-   <property name="sizePolicy">
-    <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
-     <horstretch>2</horstretch>
-     <verstretch>1</verstretch>
-    </sizepolicy>
+   <property name="minimumSize">
+    <size>
+     <width>640</width>
+     <height>480</height>
+    </size>
    </property>
-   <layout class="QGridLayout" name="GridLayout">
-    <property name="leftMargin">
-     <number>0</number>
-    </property>
-    <property name="topMargin">
-     <number>0</number>
-    </property>
-    <property name="rightMargin">
-     <number>0</number>
-    </property>
-    <property name="bottomMargin">
-     <number>0</number>
-    </property>
-    <item row="0" column="0">
-     <widget class="QSplitter" name="splitter">
-      <property name="minimumSize">
-       <size>
-        <width>0</width>
-        <height>0</height>
-       </size>
-      </property>
+   <property name="layoutDirection">
+    <enum>Qt::LeftToRight</enum>
+   </property>
+   <layout class="QGridLayout" name="centralLayout" columnstretch="0,1">
+    <item row="5" column="1" alignment="Qt::AlignRight">
+     <widget class="QFrame" name="frame">
       <property name="frameShape">
        <enum>QFrame::NoFrame</enum>
       </property>
       <property name="frameShadow">
        <enum>QFrame::Plain</enum>
       </property>
-      <property name="orientation">
-       <enum>Qt::Horizontal</enum>
-      </property>
-      <widget class="QListWidget" name="FileList">
-       <property name="sizePolicy">
-        <sizepolicy hsizetype="Maximum" vsizetype="MinimumExpanding">
-         <horstretch>0</horstretch>
-         <verstretch>0</verstretch>
-        </sizepolicy>
+      <layout class="QHBoxLayout" name="horizontalLayout">
+       <property name="spacing">
+        <number>2</number>
        </property>
-       <property name="minimumSize">
-        <size>
-         <width>0</width>
-         <height>0</height>
-        </size>
+       <property name="leftMargin">
+        <number>2</number>
        </property>
-       <property name="baseSize">
-        <size>
-         <width>0</width>
-         <height>0</height>
-        </size>
+       <property name="topMargin">
+        <number>2</number>
        </property>
-      </widget>
-      <widget class="QWidget" name="layoutWidget">
-       <layout class="QVBoxLayout" name="verticalLayout_2">
+       <property name="rightMargin">
+        <number>2</number>
+       </property>
+       <property name="bottomMargin">
+        <number>2</number>
+       </property>
+       <item>
+        <widget class="QPushButton" name="media_file_metadata_lookup_btn">
+         <property name="sizePolicy">
+          <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+           <horstretch>0</horstretch>
+           <verstretch>0</verstretch>
+          </sizepolicy>
+         </property>
+         <property name="text">
+          <string>Lookup</string>
+         </property>
+         <property name="icon">
+          <iconset theme="search">
+           <normaloff>../../../.designer/backup</normaloff>../../../.designer/backup</iconset>
+         </property>
+        </widget>
+       </item>
+      </layout>
+     </widget>
+    </item>
+    <item row="0" column="1">
+     <layout class="QVBoxLayout" name="verticalLayout_2">
+      <item>
+       <layout class="QVBoxLayout" name="verticalLayout">
         <item>
-         <layout class="QVBoxLayout" name="verticalLayout" stretch="0,1,0">
-          <property name="rightMargin">
-           <number>4</number>
+         <widget class="QLabel" name="media_file_file_path">
+          <property name="frameShape">
+           <enum>QFrame::Panel</enum>
           </property>
-          <item>
-           <widget class="QLineEdit" name="CurrentDirectory">
-            <property name="readOnly">
-             <bool>true</bool>
-            </property>
-           </widget>
-          </item>
-          <item>
-           <widget class="QLineEdit" name="CurrentFile">
-            <property name="readOnly">
-             <bool>true</bool>
-            </property>
-           </widget>
-          </item>
-          <item>
-           <layout class="QHBoxLayout" name="MediaTypeLayout" stretch="5,2,3">
-            <item>
-             <spacer name="horizontalSpacer_2">
-              <property name="orientation">
-               <enum>Qt::Horizontal</enum>
-              </property>
-              <property name="sizeHint" stdset="0">
-               <size>
-                <width>40</width>
-                <height>20</height>
-               </size>
-              </property>
-             </spacer>
-            </item>
-            <item>
-             <widget class="QLabel" name="MediaTypeLabel">
-              <property name="text">
-               <string>Media Type</string>
-              </property>
-             </widget>
-            </item>
-            <item>
-             <widget class="QComboBox" name="MediaType">
-              <property name="sizePolicy">
-               <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
-                <horstretch>0</horstretch>
-                <verstretch>0</verstretch>
-               </sizepolicy>
-              </property>
-              <property name="minimumSize">
-               <size>
-                <width>80</width>
-                <height>0</height>
-               </size>
-              </property>
-              <property name="baseSize">
-               <size>
-                <width>50</width>
-                <height>0</height>
-               </size>
-              </property>
-             </widget>
-            </item>
-           </layout>
-          </item>
-         </layout>
-        </item>
-        <item>
-         <widget class="QGroupBox" name="TVShowGroup">
-          <property name="sizePolicy">
-           <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
-            <horstretch>1</horstretch>
-            <verstretch>1</verstretch>
-           </sizepolicy>
+          <property name="frameShadow">
+           <enum>QFrame::Sunken</enum>
           </property>
-          <property name="title">
+          <property name="text">
            <string/>
           </property>
-          <layout class="QGridLayout" name="gridLayout" columnstretch="0">
-           <item row="0" column="0">
-            <layout class="QFormLayout" name="TVDataForm">
-             <property name="sizeConstraint">
-              <enum>QLayout::SetDefaultConstraint</enum>
-             </property>
-             <item row="0" column="0">
-              <widget class="QLabel" name="TVShowLabel">
-               <property name="minimumSize">
-                <size>
-                 <width>80</width>
-                 <height>0</height>
-                </size>
-               </property>
-               <property name="text">
-                <string>TV Show</string>
-               </property>
-               <property name="buddy">
-                <cstring>TVShow</cstring>
-               </property>
-              </widget>
-             </item>
-             <item row="0" column="1">
-              <widget class="QLineEdit" name="TVShow"/>
-             </item>
-             <item row="1" column="1">
-              <widget class="QTextEdit" name="TVShowSummary">
-               <property name="sizePolicy">
-                <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
-                 <horstretch>0</horstretch>
-                 <verstretch>0</verstretch>
-                </sizepolicy>
-               </property>
-               <property name="maximumSize">
-                <size>
-                 <width>16777215</width>
-                 <height>110</height>
-                </size>
-               </property>
-              </widget>
-             </item>
-             <item row="2" column="1">
-              <layout class="QHBoxLayout" name="horizontalLayout">
-               <item>
-                <layout class="QHBoxLayout" name="EpisodeLayout">
-                 <property name="sizeConstraint">
-                  <enum>QLayout::SetMinimumSize</enum>
-                 </property>
-                 <property name="topMargin">
-                  <number>0</number>
-                 </property>
-                 <property name="bottomMargin">
-                  <number>0</number>
-                 </property>
-                 <item>
-                  <widget class="QLabel" name="EpisodeLabel">
-                   <property name="text">
-                    <string>Episode</string>
-                   </property>
-                  </widget>
-                 </item>
-                 <item>
-                  <widget class="QSpinBox" name="TVEpisode"/>
-                 </item>
-                </layout>
-               </item>
-               <item>
-                <layout class="QHBoxLayout" name="SeasonLayout">
-                 <property name="sizeConstraint">
-                  <enum>QLayout::SetMinimumSize</enum>
-                 </property>
-                 <property name="topMargin">
-                  <number>0</number>
-                 </property>
-                 <property name="bottomMargin">
-                  <number>0</number>
-                 </property>
-                 <item>
-                  <widget class="QLabel" name="SeasonLabel">
-                   <property name="text">
-                    <string>Season</string>
-                   </property>
-                   <property name="alignment">
-                    <set>Qt::AlignLeading|Qt::AlignLeft|Qt::AlignVCenter</set>
-                   </property>
-                  </widget>
-                 </item>
-                 <item>
-                  <widget class="QSpinBox" name="TVSeason">
-                   <property name="maximum">
-                    <number>9999</number>
-                   </property>
-                  </widget>
-                 </item>
-                </layout>
-               </item>
-              </layout>
-             </item>
-             <item row="1" column="0">
-              <widget class="QLabel" name="SummaryLabel">
-               <property name="minimumSize">
-                <size>
-                 <width>80</width>
-                 <height>0</height>
-                </size>
-               </property>
-               <property name="text">
-                <string>Summary</string>
-               </property>
-              </widget>
-             </item>
-            </layout>
-           </item>
-          </layout>
          </widget>
         </item>
         <item>
-         <layout class="QFormLayout" name="MetadataForm">
-          <property name="sizeConstraint">
-           <enum>QLayout::SetMinimumSize</enum>
+         <widget class="QLabel" name="media_file_file_name">
+          <property name="frameShape">
+           <enum>QFrame::Panel</enum>
           </property>
-          <property name="topMargin">
-           <number>4</number>
+          <property name="frameShadow">
+           <enum>QFrame::Sunken</enum>
           </property>
-          <property name="rightMargin">
-           <number>4</number>
+          <property name="text">
+           <string/>
           </property>
-          <property name="bottomMargin">
-           <number>4</number>
-          </property>
-          <item row="0" column="1">
-           <layout class="QHBoxLayout" name="DateIDLayout">
-            <property name="sizeConstraint">
-             <enum>QLayout::SetFixedSize</enum>
-            </property>
-            <item>
-             <layout class="QHBoxLayout" name="DateLayout" stretch="0,1">
-              <property name="sizeConstraint">
-               <enum>QLayout::SetMinimumSize</enum>
-              </property>
-              <property name="topMargin">
-               <number>4</number>
-              </property>
-              <property name="rightMargin">
-               <number>6</number>
-              </property>
-              <property name="bottomMargin">
-               <number>0</number>
-              </property>
-              <item>
-               <widget class="QLabel" name="ReleasedDateLabel">
-                <property name="sizePolicy">
-                 <sizepolicy hsizetype="Expanding" vsizetype="Preferred">
-                  <horstretch>1</horstretch>
-                  <verstretch>0</verstretch>
-                 </sizepolicy>
-                </property>
-                <property name="text">
-                 <string>Release Date</string>
-                </property>
-                <property name="alignment">
-                 <set>Qt::AlignLeading|Qt::AlignLeft|Qt::AlignVCenter</set>
-                </property>
-               </widget>
-              </item>
-              <item>
-               <widget class="QDateEdit" name="ReleasedDate">
-                <property name="displayFormat">
-                 <string>yyyy-MM-dd</string>
-                </property>
-                <property name="calendarPopup">
-                 <bool>true</bool>
-                </property>
-               </widget>
-              </item>
-             </layout>
-            </item>
-            <item>
-             <layout class="QHBoxLayout" name="TMDBLayout">
-              <property name="sizeConstraint">
-               <enum>QLayout::SetMinimumSize</enum>
-              </property>
-              <property name="topMargin">
-               <number>2</number>
-              </property>
-              <property name="bottomMargin">
-               <number>2</number>
-              </property>
-              <item>
-               <widget class="QLabel" name="TMDBIDLabel">
-                <property name="text">
-                 <string>TMDB ID</string>
-                </property>
-               </widget>
-              </item>
-              <item>
-               <widget class="QSpinBox" name="TMDBID">
-                <property name="maximum">
-                 <number>9999999</number>
-                </property>
-               </widget>
-              </item>
-             </layout>
-            </item>
-           </layout>
-          </item>
-          <item row="1" column="0">
-           <widget class="QLabel" name="MediaTitleLabel">
-            <property name="text">
-             <string>Title</string>
-            </property>
-            <property name="buddy">
-             <cstring>MediaTitle</cstring>
-            </property>
-           </widget>
-          </item>
-          <item row="1" column="1">
-           <widget class="QLineEdit" name="MediaTitle"/>
-          </item>
-          <item row="2" column="0">
-           <widget class="QLabel" name="MediaDescriptionLabel">
-            <property name="text">
-             <string>Description</string>
-            </property>
-           </widget>
-          </item>
-          <item row="2" column="1">
-           <widget class="QPlainTextEdit" name="MediaDescription"/>
-          </item>
-          <item row="3" column="0">
-           <widget class="QLabel" name="GenreTagLabel">
-            <property name="text">
-             <string>Genre Tag</string>
-            </property>
-           </widget>
-          </item>
-          <item row="3" column="1">
-           <widget class="QLineEdit" name="GenreTag">
-            <property name="readOnly">
-             <bool>true</bool>
-            </property>
-           </widget>
-          </item>
-          <item row="4" column="1">
-           <layout class="QVBoxLayout" name="GenresLayout">
-            <property name="spacing">
-             <number>0</number>
-            </property>
-            <item>
-             <widget class="QLabel" name="GenresLabel">
-              <property name="text">
-               <string>Genres</string>
-              </property>
-             </widget>
-            </item>
-           </layout>
-          </item>
-          <item row="8" column="1">
-           <layout class="QHBoxLayout" name="horizontalLayout_2">
-            <item>
-             <spacer name="horizontalSpacer">
-              <property name="orientation">
-               <enum>Qt::Horizontal</enum>
-              </property>
-              <property name="sizeHint" stdset="0">
-               <size>
-                <width>40</width>
-                <height>20</height>
-               </size>
-              </property>
-             </spacer>
-            </item>
-            <item>
-             <widget class="QPushButton" name="MetadataLookup">
-              <property name="sizePolicy">
-               <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
-                <horstretch>0</horstretch>
-                <verstretch>0</verstretch>
-               </sizepolicy>
-              </property>
-              <property name="minimumSize">
-               <size>
-                <width>80</width>
-                <height>0</height>
-               </size>
-              </property>
-              <property name="text">
-               <string>Lookup</string>
-              </property>
-              <property name="icon">
-               <iconset theme="find">
-                <normaloff>.</normaloff>.</iconset>
-              </property>
-             </widget>
-            </item>
-           </layout>
-          </item>
-          <item row="5" column="1">
-           <widget class="QListWidget" name="Genres">
-            <property name="selectionMode">
-             <enum>QAbstractItemView::MultiSelection</enum>
-            </property>
-           </widget>
-          </item>
-          <item row="6" column="0">
-           <widget class="QLabel" name="CastLabel">
-            <property name="text">
-             <string>Cast</string>
-            </property>
-           </widget>
-          </item>
-          <item row="6" column="1">
-           <widget class="QTableView" name="CastView"/>
-          </item>
-         </layout>
+         </widget>
         </item>
        </layout>
-      </widget>
+      </item>
+      <item>
+       <layout class="QGridLayout" name="media_file_metadata_info" columnstretch="0,1,0,0,0,0">
+        <item row="0" column="0">
+         <widget class="QLabel" name="media_file_media_types_label">
+          <property name="sizePolicy">
+           <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
+            <horstretch>1</horstretch>
+            <verstretch>0</verstretch>
+           </sizepolicy>
+          </property>
+          <property name="text">
+           <string>Media Type</string>
+          </property>
+         </widget>
+        </item>
+        <item row="0" column="1">
+         <widget class="QComboBox" name="media_file_media_types">
+          <property name="sizePolicy">
+           <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
+            <horstretch>1</horstretch>
+            <verstretch>0</verstretch>
+           </sizepolicy>
+          </property>
+         </widget>
+        </item>
+        <item row="0" column="2">
+         <widget class="QLabel" name="media_file_metadata_id_label">
+          <property name="sizePolicy">
+           <sizepolicy hsizetype="Fixed" vsizetype="Preferred">
+            <horstretch>1</horstretch>
+            <verstretch>0</verstretch>
+           </sizepolicy>
+          </property>
+          <property name="minimumSize">
+           <size>
+            <width>40</width>
+            <height>0</height>
+           </size>
+          </property>
+          <property name="text">
+           <string>ID</string>
+          </property>
+         </widget>
+        </item>
+        <item row="0" column="3">
+         <widget class="QLineEdit" name="media_file_metadata_id"/>
+        </item>
+        <item row="0" column="4">
+         <widget class="QLabel" name="media_file_release_date_label">
+          <property name="text">
+           <string>Date</string>
+          </property>
+          <property name="buddy">
+           <cstring>media_file_release_date</cstring>
+          </property>
+         </widget>
+        </item>
+        <item row="0" column="5">
+         <widget class="QDateEdit" name="media_file_release_date">
+          <property name="readOnly">
+           <bool>false</bool>
+          </property>
+          <property name="correctionMode">
+           <enum>QAbstractSpinBox::CorrectToNearestValue</enum>
+          </property>
+          <property name="displayFormat">
+           <string>yyyy-MM-dd</string>
+          </property>
+         </widget>
+        </item>
+       </layout>
+      </item>
+     </layout>
+    </item>
+    <item row="2" column="1">
+     <layout class="QGridLayout" name="gridLayout_3">
+      <item row="1" column="1">
+       <widget class="QTextEdit" name="media_file_description"/>
+      </item>
+      <item row="0" column="0">
+       <widget class="QLabel" name="media_file_title_label">
+        <property name="sizePolicy">
+         <sizepolicy hsizetype="Fixed" vsizetype="Preferred">
+          <horstretch>0</horstretch>
+          <verstretch>0</verstretch>
+         </sizepolicy>
+        </property>
+        <property name="minimumSize">
+         <size>
+          <width>60</width>
+          <height>0</height>
+         </size>
+        </property>
+        <property name="text">
+         <string>Title</string>
+        </property>
+        <property name="buddy">
+         <cstring>media_file_title</cstring>
+        </property>
+       </widget>
+      </item>
+      <item row="0" column="1">
+       <widget class="QLineEdit" name="media_file_title"/>
+      </item>
+      <item row="1" column="0">
+       <widget class="QLabel" name="media_file_description_label">
+        <property name="text">
+         <string>Summary</string>
+        </property>
+        <property name="alignment">
+         <set>Qt::AlignLeading|Qt::AlignLeft|Qt::AlignTop</set>
+        </property>
+        <property name="buddy">
+         <cstring>media_file_description</cstring>
+        </property>
+       </widget>
+      </item>
+     </layout>
+    </item>
+    <item row="0" column="0" rowspan="4">
+     <widget class="QListView" name="media_file_view">
+      <property name="sizePolicy">
+       <sizepolicy hsizetype="Minimum" vsizetype="Expanding">
+        <horstretch>0</horstretch>
+        <verstretch>0</verstretch>
+       </sizepolicy>
+      </property>
+      <property name="minimumSize">
+       <size>
+        <width>300</width>
+        <height>0</height>
+       </size>
+      </property>
      </widget>
+    </item>
+    <item row="1" column="1">
+     <widget class="QFrame" name="media_file_tvshow_frame">
+      <property name="frameShape">
+       <enum>QFrame::StyledPanel</enum>
+      </property>
+      <property name="frameShadow">
+       <enum>QFrame::Raised</enum>
+      </property>
+      <layout class="QGridLayout" name="gridLayout">
+       <item row="0" column="1">
+        <widget class="QLineEdit" name="media_file_tvshow"/>
+       </item>
+       <item row="0" column="0">
+        <widget class="QLabel" name="media_file_tvshow_label">
+         <property name="text">
+          <string>TV Show</string>
+         </property>
+         <property name="buddy">
+          <cstring>media_file_tvshow</cstring>
+         </property>
+        </widget>
+       </item>
+       <item row="0" column="2">
+        <widget class="QLabel" name="media_file_tvshow_season_label">
+         <property name="text">
+          <string>Season</string>
+         </property>
+         <property name="buddy">
+          <cstring>media_file_tvshow_season</cstring>
+         </property>
+        </widget>
+       </item>
+       <item row="2" column="0">
+        <widget class="QLabel" name="media_file_tvshow_summary_label">
+         <property name="text">
+          <string>Summary</string>
+         </property>
+         <property name="alignment">
+          <set>Qt::AlignLeading|Qt::AlignLeft|Qt::AlignTop</set>
+         </property>
+         <property name="buddy">
+          <cstring>media_file_tvshow_summary</cstring>
+         </property>
+        </widget>
+       </item>
+       <item row="0" column="5">
+        <widget class="QSpinBox" name="media_file_tvshow_episode"/>
+       </item>
+       <item row="2" column="1" colspan="5">
+        <widget class="QPlainTextEdit" name="media_file_tvshow_summary"/>
+       </item>
+       <item row="0" column="3">
+        <widget class="QSpinBox" name="media_file_tvshow_season"/>
+       </item>
+       <item row="0" column="4">
+        <widget class="QLabel" name="media_file_tvshow_episode_label">
+         <property name="text">
+          <string>Episode</string>
+         </property>
+         <property name="buddy">
+          <cstring>media_file_tvshow_episode</cstring>
+         </property>
+        </widget>
+       </item>
+      </layout>
+     </widget>
+    </item>
+    <item row="3" column="1">
+     <layout class="QGridLayout" name="media_file_cast_crew_genre_layout" rowstretch="0,0,0,0,0,0,0,0,0,0,0" columnstretch="0,0,0,0,0">
+      <property name="bottomMargin">
+       <number>5</number>
+      </property>
+      <property name="horizontalSpacing">
+       <number>4</number>
+      </property>
+      <item row="8" column="1">
+       <widget class="QPushButton" name="media_file_add_crew_member">
+        <property name="text">
+         <string>Add Crew</string>
+        </property>
+       </widget>
+      </item>
+      <item row="4" column="1">
+       <widget class="QPushButton" name="media_file_remove_cast_member">
+        <property name="text">
+         <string>Delete Cast</string>
+        </property>
+       </widget>
+      </item>
+      <item row="0" column="0">
+       <widget class="QLabel" name="media_file_genre_label">
+        <property name="sizePolicy">
+         <sizepolicy hsizetype="Fixed" vsizetype="Preferred">
+          <horstretch>0</horstretch>
+          <verstretch>0</verstretch>
+         </sizepolicy>
+        </property>
+        <property name="minimumSize">
+         <size>
+          <width>60</width>
+          <height>0</height>
+         </size>
+        </property>
+        <property name="text">
+         <string>Genre</string>
+        </property>
+        <property name="buddy">
+         <cstring>media_file_genre_tag</cstring>
+        </property>
+       </widget>
+      </item>
+      <item row="5" column="1">
+       <widget class="QPushButton" name="media_file_add_cast_member">
+        <property name="text">
+         <string>Add Cast</string>
+        </property>
+       </widget>
+      </item>
+      <item row="4" column="2" rowspan="3" colspan="3">
+       <widget class="QTableView" name="media_file_cast_view">
+        <property name="minimumSize">
+         <size>
+          <width>200</width>
+          <height>150</height>
+         </size>
+        </property>
+        <property name="selectionMode">
+         <enum>QAbstractItemView::SingleSelection</enum>
+        </property>
+        <property name="selectionBehavior">
+         <enum>QAbstractItemView::SelectRows</enum>
+        </property>
+        <property name="showGrid">
+         <bool>false</bool>
+        </property>
+        <property name="gridStyle">
+         <enum>Qt::NoPen</enum>
+        </property>
+        <property name="sortingEnabled">
+         <bool>true</bool>
+        </property>
+        <property name="wordWrap">
+         <bool>true</bool>
+        </property>
+        <attribute name="verticalHeaderVisible">
+         <bool>false</bool>
+        </attribute>
+       </widget>
+      </item>
+      <item row="1" column="2">
+       <widget class="QPushButton" name="media_file_reset_genre">
+        <property name="text">
+         <string>Reset Genre</string>
+        </property>
+       </widget>
+      </item>
+      <item row="7" column="2" rowspan="3" colspan="3">
+       <widget class="QTableView" name="media_file_crew_view">
+        <property name="minimumSize">
+         <size>
+          <width>0</width>
+          <height>150</height>
+         </size>
+        </property>
+        <property name="selectionMode">
+         <enum>QAbstractItemView::SingleSelection</enum>
+        </property>
+        <property name="selectionBehavior">
+         <enum>QAbstractItemView::SelectRows</enum>
+        </property>
+        <property name="showGrid">
+         <bool>false</bool>
+        </property>
+        <property name="sortingEnabled">
+         <bool>true</bool>
+        </property>
+       </widget>
+      </item>
+      <item row="0" column="1" colspan="4">
+       <widget class="QLineEdit" name="media_file_genre_tag"/>
+      </item>
+      <item row="7" column="1">
+       <widget class="QPushButton" name="media_file_delete_crew_member">
+        <property name="text">
+         <string>Delete Crew</string>
+        </property>
+       </widget>
+      </item>
+      <item row="2" column="2">
+       <spacer name="verticalSpacer">
+        <property name="orientation">
+         <enum>Qt::Vertical</enum>
+        </property>
+        <property name="sizeHint" stdset="0">
+         <size>
+          <width>20</width>
+          <height>40</height>
+         </size>
+        </property>
+       </spacer>
+      </item>
+      <item row="1" column="1" rowspan="2">
+       <widget class="QListWidget" name="media_file_genre_list">
+        <property name="sizePolicy">
+         <sizepolicy hsizetype="Fixed" vsizetype="Expanding">
+          <horstretch>0</horstretch>
+          <verstretch>0</verstretch>
+         </sizepolicy>
+        </property>
+        <property name="minimumSize">
+         <size>
+          <width>115</width>
+          <height>0</height>
+         </size>
+        </property>
+        <property name="maximumSize">
+         <size>
+          <width>115</width>
+          <height>16777215</height>
+         </size>
+        </property>
+        <property name="selectionMode">
+         <enum>QAbstractItemView::MultiSelection</enum>
+        </property>
+       </widget>
+      </item>
+     </layout>
     </item>
    </layout>
   </widget>
@@ -477,71 +470,51 @@
     <rect>
      <x>0</x>
      <y>0</y>
-     <width>1146</width>
-     <height>24</height>
+     <width>935</width>
+     <height>20</height>
     </rect>
    </property>
    <widget class="QMenu" name="menuFile">
     <property name="title">
-     <string>&amp;File</string>
+     <string>File</string>
     </property>
-    <addaction name="actionOpenFile"/>
+    <addaction name="actionOpenFiles"/>
     <addaction name="actionSaveFile"/>
+    <addaction name="actionSaveAllFiles"/>
     <addaction name="actionCloseFile"/>
     <addaction name="separator"/>
-    <addaction name="actionExit"/>
-   </widget>
-   <widget class="QMenu" name="menuEdit">
-    <property name="title">
-     <string>&amp;Edit</string>
-    </property>
-   </widget>
-   <widget class="QMenu" name="menuHelp">
-    <property name="title">
-     <string>Help</string>
-    </property>
-    <addaction name="actionAbout"/>
+    <addaction name="actionQuit"/>
    </widget>
    <addaction name="menuFile"/>
-   <addaction name="menuEdit"/>
-   <addaction name="menuHelp"/>
   </widget>
-  <widget class="QStatusBar" name="StatusBar">
-   <property name="autoFillBackground">
-    <bool>true</bool>
-   </property>
-  </widget>
-  <widget class="QToolBar" name="toolBar">
-   <property name="windowTitle">
-    <string>toolBar</string>
-   </property>
-   <attribute name="toolBarArea">
-    <enum>TopToolBarArea</enum>
-   </attribute>
-   <attribute name="toolBarBreak">
-    <bool>false</bool>
-   </attribute>
-   <addaction name="actionOpenFileTool"/>
-   <addaction name="actionSaveFileTool"/>
-  </widget>
-  <action name="actionAbout">
-   <property name="text">
-    <string>About</string>
-   </property>
-  </action>
-  <action name="actionOpenFile">
+  <widget class="QStatusBar" name="statusbar"/>
+  <action name="actionOpenFiles">
    <property name="icon">
-    <iconset theme="document-open">
-     <normaloff>.</normaloff>.</iconset>
+    <iconset>
+     <normaloff>../../../.designer/folder-open.png</normaloff>../../../.designer/folder-open.png</iconset>
    </property>
    <property name="text">
     <string>Open</string>
    </property>
-   <property name="toolTip">
-    <string>Open a media file</string>
-   </property>
    <property name="shortcut">
     <string>Ctrl+O</string>
+   </property>
+  </action>
+  <action name="actionSaveFile">
+   <property name="icon">
+    <iconset theme="document-save">
+     <normaloff>../../../.designer/backup</normaloff>../../../.designer/backup</iconset>
+   </property>
+   <property name="text">
+    <string>Save</string>
+   </property>
+   <property name="shortcut">
+    <string>Ctrl+S</string>
+   </property>
+  </action>
+  <action name="actionSaveAllFiles">
+   <property name="text">
+    <string>Save All</string>
    </property>
   </action>
   <action name="actionCloseFile">
@@ -552,50 +525,16 @@
     <string>Ctrl+W</string>
    </property>
   </action>
-  <action name="actionExit">
+  <action name="actionQuit">
    <property name="icon">
-    <iconset theme="application-exit">
-     <normaloff>.</normaloff>.</iconset>
+    <iconset theme="exit">
+     <normaloff>../../../.designer/backup</normaloff>../../../.designer/backup</iconset>
    </property>
    <property name="text">
-    <string>Exit</string>
+    <string>Quit</string>
    </property>
    <property name="shortcut">
     <string>Ctrl+Q</string>
-   </property>
-  </action>
-  <action name="actionSaveFile">
-   <property name="icon">
-    <iconset theme="document-save">
-     <normaloff>.</normaloff>.</iconset>
-   </property>
-   <property name="text">
-    <string>Save</string>
-   </property>
-   <property name="shortcut">
-    <string>Ctrl+S</string>
-   </property>
-  </action>
-  <action name="actionOpenFileTool">
-   <property name="icon">
-    <iconset theme="fileopen"/>
-   </property>
-   <property name="text">
-    <string>OpenFile</string>
-   </property>
-   <property name="toolTip">
-    <string>Open Media File</string>
-   </property>
-  </action>
-  <action name="actionSaveFileTool">
-   <property name="icon">
-    <iconset theme="filesave"/>
-   </property>
-   <property name="text">
-    <string>SaveFileTool</string>
-   </property>
-   <property name="toolTip">
-    <string>Save Tags</string>
    </property>
   </action>
  </widget>
