@@ -79,8 +79,9 @@ class MediaFile():
     ## Tags we are interested in.
     # Multiple instances of these tags may be present.
     multi_tags = [ 'ACTOR' ]
-    crew_tags =  [ 'DIRECTOR', 'ASSISTANT_DIRECTOR', 'DIRECTOR_OF_PHOTOGRAPHY', 'WRITER', 'CASTING', 
-                   'EXECUTIVE_PRODUCER', 'SCREENPLAY', 'ORIGINAL_MUSIC_COMPOSER', 'ART_DIRECTION',
+    crew_tags =  [ 'DIRECTOR', 'ASSISTANT_DIRECTOR', 'DIRECTOR_OF_PHOTOGRAPHY', 'WRITEN_BY', '_CASTING', 
+                   'EXECUTIVE_PRODUCER', 'SCREENPLAY_BY', 'ORIGINAL_MUSIC_COMPOSER', 'ART_DIRECTION', 'COPRODUCER',
+                   'PRODUCER', 'EDITED_BY'
                     ]
     # There should only be one of these, we will update the values, which allows us to edit the data.
     unique_tags =  ['TITLE', 'SHOW', 'SUMMARY', 'SEASON', 'EPISODE', 'DATE_RELEASED', 'SUBTITLE', 'MEDIA_TYPE',
@@ -240,6 +241,7 @@ class MediaFile():
                                 if str(tag) in self.crew_tags:
                                     crew_tag = {'job': str(tag), 'person': sub_elem.text }
                                     xml_tags['crew'].append(crew_tag)
+                                    print (f"crew: {tag} -> {sub_elem.text} parsed")
                                 else:
                                     self.uniqueProperty(Property(tag, sub_elem.text))
                                     xml_tags[str(tag)] = sub_elem.text
@@ -288,7 +290,6 @@ class MediaFile():
             simple.append(name)
             tag.append(simple)
             string = ET.Element('String')
-#            print (f"{property.name} {property.value}")
             string.text = str(property.value)
             simple.append(string)
             child = property.getChild()
@@ -395,6 +396,11 @@ class SearchResults(QDialog):
 # Main application
 #
 class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
+    #
+    # Translate tmdb metadata info to official matroska tags.
+    #
+    tmdb_to_matroska = dict({'Writer': 'WRITEN_BY', 'Screenplay': 'SCREENPLAY_BY', 'Editor': 'EDITED_BY', 'Director': 'DIRECTOR',
+                             'Director of Photography': 'DIRECTOR_OF_PHOTOGRAPHY'})
     def __init__(self):
         QtWidgets.QMainWindow.__init__(self)
         Ui_MainWindow.__init__(self)
@@ -504,6 +510,23 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
         self.media_file_title.setText('')
         self.media_file_title_label.setText("Title")
 
+    # Clear the genre list selections
+    def reset_genre_list(self):
+        for i in range(self.media_file_genre_list.count()):
+            item = self.media_file_genre_list.item(i)
+            item.setSelected(False)
+
+    def clear_metadata_display(self):
+        self.cast_model.removeRows(0, self.cast_model.rowCount())
+        self.crew_model.removeRows(0, self.crew_model.rowCount())
+        self.media_file_file_path.setText('')
+        self.media_file_file_name.setText('')
+        self.media_file_metadata_id.setText('')
+        self.media_file_description.setPlainText('')
+        self.media_file_genre_tag.setText('')
+        self.reset_genre_list()
+        self.clear_tvshow()
+
     # Update all the metadata widgets
     def update_metadata_cast_display(self, cast):
         self.cast_model.removeRows(0, self.cast_model.rowCount())
@@ -587,9 +610,15 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
     def media_file_fill_crew_tags(self, file, crew):
         crew_tags = []
         for crew_member in crew:
-            crew_tags.append({'job': crew_member['job'], 'person': crew_member['name']})         
-            tag = '_'.join(crew_member['job'].split(' ')).upper()
-            file.uniqueProperty(Property(tag, crew_member['name']))
+            print (f"{crew_member['job']} - {crew_member['name']}")
+            if crew_member['job'] in self.tmdb_to_matroska:
+                job = self.tmdb_to_matroska[crew_member['job']]
+                print (f"{crew_member['job']} -> {job}")
+            else:
+                # We mark it as an 'unoffical tag'
+                job = '_'+crew_member['job']
+            crew_tags.append({'job': job, 'person': crew_member['name']})         
+            file.uniqueProperty(Property('_'.join(job.split(' ')).upper(), crew_member['name']))
         return crew_tags
 
     def media_file_fill_show_tags(self, show):
@@ -644,7 +673,6 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
         tags['cast'] = self.media_file_fill_cast_tags(file, movie['credits']['cast'])
         tags['crew'] = self.media_file_fill_crew_tags(file, movie['credits']['crew'])
         file.changes = True
-        pprint.pp(set(file.properties))
         self.update_metadata_display(file.metadata)
 
     #
@@ -733,7 +761,6 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
             self.media_file_genre_tag.setText(file.metadata['tags']['genre'])
         # nothing selected
 
-
     def media_file_metadata_lookup (self):
         media_type_name = self.media_file_media_types.currentText()
         media_type = self.media_file_media_types.itemData(self.media_file_media_types.currentIndex())
@@ -782,6 +809,7 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
     #
     def close_file(self):
         indexes = self.media_file_view.selectedIndexes()
+        self.media_file_view.clearSelection()
         for index in indexes:
             file  = self.model.mediafiles[index.row()]
             if file.changes:
@@ -792,11 +820,9 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
                 else:
                     self.save_file(file)
                     del self.model.mediafiles[index.row()]
-                self.media_file_view.clearSelection()
             else:
                 del self.model.mediafiles[index.row()]
-                self.media_file_view.clearSelection()
-
+            self.clear_metadata_display()
         # nothing selected.
 
 
