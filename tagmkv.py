@@ -12,12 +12,14 @@ import datetime
 import subprocess
 import tempfile
 import xmltodict
+import argparse, traceback
 import lxml.etree as ET
 from PyQt5 import QtCore, QtGui, QtWidgets, uic
 from PyQt5.uic import loadUi
 from PyQt5.QtWidgets import QApplication, QFileDialog, QListWidgetItem, QMessageBox, QDialog
 from PyQt5.QtGui import QColor, QStandardItemModel, QStandardItem
-from PyQt5.QtCore import Qt, QDate, QUrl, QModelIndex, QItemSelectionModel
+from PyQt5.QtCore import ( Qt, QDate, QUrl, QModelIndex, QItemSelectionModel, QObject, pyqtSignal, QRunnable,
+                         pyqtSlot, QThreadPool)
 from tmdbv3api import *
 from tmdbv3api.exceptions import TMDbException
 
@@ -25,6 +27,77 @@ import pprint
 
 qt_creator_file = sys.path[0] + "/ui/main_window.ui"
 Ui_MainWindow, QtBaseClass = uic.loadUiType(qt_creator_file)
+'''
+Thread support
+'''
+class WorkerSignals(QObject):
+    '''
+    Defines the signals available from a running worker thread.
+
+    Supported signals are:
+
+    finished
+        No data
+
+    error
+        tuple (exctype, value, traceback.format_exc() )
+
+    result
+        object data returned from processing, anything
+
+    progress
+        int indicating % progress
+
+    '''
+    finished = pyqtSignal()
+    error = pyqtSignal(tuple)
+    result = pyqtSignal(object)
+    progress = pyqtSignal(object)
+
+
+class Worker(QRunnable):
+    '''
+    Worker thread
+
+    Inherits from QRunnable to handler worker thread setup, signals and wrap-up.
+
+    :param callback: The function callback to run on this worker thread. Supplied args and
+                     kwargs will be passed through to the runner.
+    :type callback: function
+    :param args: Arguments to pass to the callback function
+    :param kwargs: Keywords to pass to the callback function
+
+    '''
+
+    def __init__(self, fn, *args, **kwargs):
+        super(Worker, self).__init__()
+
+        # Store constructor arguments (re-used for processing)
+        self.fn = fn
+        self.args = args
+        self.kwargs = kwargs
+        self.signals = WorkerSignals()
+
+        # Add the callback to our kwargs
+        self.kwargs['progress_callback'] = self.signals.progress
+
+    @pyqtSlot()
+    def run(self):
+        '''
+        Initialise the runner function with passed args, kwargs.
+        '''
+
+        # Retrieve args/kwargs here; and fire processing using them
+        try:
+            result = self.fn(*self.args, **self.kwargs)
+        except:
+            traceback.print_exc()
+            exctype, value = sys.exc_info()[:2]
+            self.signals.error.emit((exctype, value, traceback.format_exc()))
+        else:
+            self.signals.result.emit(result)  # Return the result of the processing
+        finally:
+            self.signals.finished.emit()  # Done
 
 #
 # class to handle the XML properties for tagging
@@ -50,7 +123,6 @@ class Property():
 
     def __eq__(self, other):
         return self.__hash__() == other.__hash__()
-
 
 #
 # The MediaFile class, represents a media file.
@@ -79,7 +151,7 @@ class MediaFile():
     ## Tags we are interested in.
     # Multiple instances of these tags may be present.
     multi_tags = [ 'ACTOR' ]
-    crew_tags =  [ 'DIRECTOR', 'ASSISTANT_DIRECTOR', 'DIRECTOR_OF_PHOTOGRAPHY', 'WRITEN_BY', '_CASTING', 
+    crew_tags =  [ 'DIRECTOR', 'ASSISTANT_DIRECTOR', 'DIRECTOR_OF_PHOTOGRAPHY', 'WRITEN_BY', 
                    'EXECUTIVE_PRODUCER', 'SCREENPLAY_BY', 'ORIGINAL_MUSIC_COMPOSER', 'ART_DIRECTION', 'COPRODUCER',
                    'PRODUCER', 'EDITED_BY'
                     ]
@@ -241,7 +313,7 @@ class MediaFile():
                                 if str(tag) in self.crew_tags:
                                     crew_tag = {'job': str(tag), 'person': sub_elem.text }
                                     xml_tags['crew'].append(crew_tag)
-                                    print (f"crew: {tag} -> {sub_elem.text} parsed")
+                                    #print (f"crew: {tag} -> {sub_elem.text} parsed")
                                 else:
                                     self.uniqueProperty(Property(tag, sub_elem.text))
                                     xml_tags[str(tag)] = sub_elem.text
@@ -251,7 +323,7 @@ class MediaFile():
                 prefix, tmdb_id = xml_tags['TMDB'].split('/')
                 xml_tags['tmdb_id'] = tmdb_id
             self.metadata['tags'].update(self.lowercase_keys(xml_tags))
- 
+
     def media_file_pack_genres(self, tags):
         if tags:
             genres = list()
@@ -374,7 +446,7 @@ class SearchResults(QDialog):
 
         d = QDate.fromString(date, 'yyyy-MM-dd')
         self.ReleaseDate.setDate(d)
-
+        self.Name.setText(result['title'])
         if 'poster_path' in result:
             if result['poster_path'] is not None:
                 poster_url = self.tmdb_config['images']['secure_base_url'] + 'w185' + result['poster_path']
@@ -400,7 +472,8 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
     # Translate tmdb metadata info to official matroska tags.
     #
     tmdb_to_matroska = dict({'Writer': 'WRITEN_BY', 'Screenplay': 'SCREENPLAY_BY', 'Editor': 'EDITED_BY', 'Director': 'DIRECTOR',
-                             'Director of Photography': 'DIRECTOR_OF_PHOTOGRAPHY'})
+                             'Director of Photography': 'DIRECTOR_OF_PHOTOGRAPHY', 'Co-Producer': 'COPRODUCER', 
+                             'Executive Producer': 'EXECUTIVE_PRODUCER'})
     def __init__(self):
         QtWidgets.QMainWindow.__init__(self)
         Ui_MainWindow.__init__(self)
@@ -420,12 +493,13 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
         self.media_file_view.selectionModel().selectionChanged.connect(self.media_file_view_row_changed)
         self.media_file_genre_list.itemClicked.connect(self.media_file_genre_list_item_clicked)
         self.media_file_media_types.activated.connect(self.media_file_media_types_activated)
-        self.actionOpenFiles.triggered.connect(self.open_files)
+        self.actionOpenFiles.triggered.connect(self.files_dialog)
         self.actionSaveFile.triggered.connect(self.save_file)
         self.actionCloseFile.triggered.connect(self.close_file)
         self.actionQuit.triggered.connect(self.close)
 
         self.media_file_metadata_lookup_btn.clicked.connect(self.media_file_metadata_lookup)
+        self.threadpool = QThreadPool()
 
     def setup_cast_model(self):
         self.cast_model = QStandardItemModel()
@@ -825,31 +899,46 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
             self.clear_metadata_display()
         # nothing selected.
 
-
-    def open_files(self):
-        QApplication.setOverrideCursor(Qt.WaitCursor)
-        files, _ = QFileDialog.getOpenFileNames(self, 'Open Media files', self.current_path, 'Media Files (*.mkv *.mka)')
+    def open_file(self, files, progress_callback):
         for file in files:
             mediafile = MediaFile(file)
-            mediafile.metadata['changed'] = False
-            self.model.mediafiles.append(mediafile)
-            self.model.layoutChanged.emit()
+            progress_callback.emit(mediafile)
+        return
 
-        # Select the last added item if no selection otherwise don't
+    def add_file(self, mediafile):
+        self.model.mediafiles.append(mediafile)
+        self.model.layoutChanged.emit()
+
+    def open_complete(self):
         indexes = self.media_file_view.selectedIndexes()
         if indexes:
             # Something selected. leave it be.
-            QApplication.restoreOverrideCursor()
             return
         # Select the last file added.
         file_count = self.model.rowCount(QModelIndex)
         index = self.model.index(file_count - 1,0)
         self.media_file_view.selectionModel().setCurrentIndex(index,QItemSelectionModel.SelectCurrent)
-        QApplication.restoreOverrideCursor()
 
+    def open_files (self, files):
+        worker = Worker(self.open_file, files, progress_callback=self.add_file)
+        worker.signals.finished.connect(self.open_complete)
+        worker.signals.progress.connect(self.add_file)
+        self.threadpool.start(worker)
 
-app = QtWidgets.QApplication(sys.argv)
-window = MainWindow()
-window.show()
-app.exec_()
+    def files_dialog(self):
+        files, _ = QFileDialog.getOpenFileNames(self, 'Open Media files', self.current_path, 'Media Files (*.mkv *.mka)')
+        self.open_files(files)
+
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser(description='Tag Media files with metadata from the Internet.')
+    parser.add_argument('--log', type=str, dest='loglevel', default="INFO")
+    parser.add_argument('files', nargs=argparse.REMAINDER)
+    args = parser.parse_args()
+    app = QApplication(sys.argv)
+    win = MainWindow()
+    #win.setLogLevel(args.loglevel)
+    win.show()
+    win.open_files(args.files)
+
+    sys.exit(app.exec())
 
