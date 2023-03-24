@@ -52,7 +52,7 @@ class WorkerSignals(QObject):
     finished = pyqtSignal()
     error = pyqtSignal(tuple)
     result = pyqtSignal(object)
-    progress = pyqtSignal(object)
+    progress = pyqtSignal(tuple)
 
 
 class Worker(QRunnable):
@@ -79,7 +79,11 @@ class Worker(QRunnable):
         self.signals = WorkerSignals()
 
         # Add the callback to our kwargs
-        self.kwargs['progress_callback'] = self.signals.progress
+        if self.kwargs['progress_callback']:
+            self.kwargs['progress_callback'] = self.signals.progress
+        else:
+            print ("No progress callback")
+
 
     @pyqtSlot()
     def run(self):
@@ -409,11 +413,10 @@ class MediaFileModel(QtCore.QAbstractListModel):
 #
 ### Search Results dialog.
 class SearchResults(QDialog):
-    def __init__(self, results):
+    def __init__(self, results, tmdb):
         super(SearchResults, self).__init__()
         self.w = loadUi(sys.path[0] + '/ui/tmdb_lookup_results.ui', self)
-        self.tmdb = TMDb()
-        self.tmdb.language = 'en'
+        self.tmdb = tmdb
         self.tmdb_config = Configuration().info()
         self.search_results = results
         self.ReleaseDate.clear() 
@@ -446,7 +449,11 @@ class SearchResults(QDialog):
 
         d = QDate.fromString(date, 'yyyy-MM-dd')
         self.ReleaseDate.setDate(d)
-        self.Name.setText(result['title'])
+        # Movies have a title, TV Shows have a name.
+        if 'title' in result:
+            self.Name.setText(result['title'])
+        else:
+            self.Name.setText(result['name'])
         if 'poster_path' in result:
             if result['poster_path'] is not None:
                 poster_url = self.tmdb_config['images']['secure_base_url'] + 'w185' + result['poster_path']
@@ -482,13 +489,21 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
         self.model = MediaFileModel()
         self.media_file_view.setModel(self.model)
         self.setup_media_types()
-        self.setup_tmdb()
         self.setup_cast_model()
         self.setup_crew_model()
+        self.threadpool = QThreadPool()
+#        self.setup_tmdb()
 
+        worker = Worker(self.setup_tmdb, progress_callback=None)
+        worker.signals.finished.connect(self.tmdb_complete)
+        self.threadpool.start(worker)
+
+        self.tv_genres = self.get_tv_genres()
+        self.movie_genres = self.get_movie_genres()
+
+        self.media_file_metadata_lookup_btn.setEnabled(False)
         self.media_file_tvshow_frame.setEnabled(False)
         self.media_file_media_types.setEnabled(False)
-        self.media_file_metadata_lookup_btn.setEnabled(False)
         ## Signal Connections
         self.media_file_view.selectionModel().selectionChanged.connect(self.media_file_view_row_changed)
         self.media_file_genre_list.itemClicked.connect(self.media_file_genre_list_item_clicked)
@@ -499,7 +514,6 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
         self.actionQuit.triggered.connect(self.close)
 
         self.media_file_metadata_lookup_btn.clicked.connect(self.media_file_metadata_lookup)
-        self.threadpool = QThreadPool()
 
     def setup_cast_model(self):
         self.cast_model = QStandardItemModel()
@@ -515,33 +529,40 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
         self.media_file_crew_view.horizontalHeader().setSectionResizeMode(1)
         self.media_file_crew_view.horizontalHeader().setDefaultAlignment(QtCore.Qt.AlignLeft | QtCore.Qt.AlignVCenter)
 
-    def setup_tmdb(self):
+    def setup_tmdb(self, progress_callback):
         self.tmdb = TMDb()
         self.tmdb.language = "en"
         config = Configuration()
         self.tmdb_config = config.info()
-        self.tv_genres = self.get_tv_genres()
-        self.movie_genres = self.get_movie_genres()
+
+    def tmdb_complete(self):
+        print ("tmdb initialized, enable lookups")
+        self.media_file_metadata_lookup_btn.setEnabled(True)
 
     def get_tv_genres(self):
         genres = self.load_genres('tv_genres')
         if genres:
+            print ("Loaded cached tv genres")
             return genres
         else:
-            tmdb = Genre()
-            genres = tmdb.tv_list()
-            self.save_genres('tv_genres', genres)
-            return genres
+            if self.tmdb:
+                tmdb = Genre()
+                genres = tmdb.tv_list()
+                self.save_genres('tv_genres', genres)
+                return genres
+        return None
 
     def get_movie_genres(self):
         genres = self.load_genres('movie_genres')
         if genres:
+            print ("Loaded cached movies generes")
             return genres
-        else:            
-            tmdb = Genre()
-            genres = tmdb.movie_list()
-            self.save_genres('movie_genres', genres)
-            return genres 
+        else:
+            if self.tmdb:            
+                tmdb = Genre()
+                genres = tmdb.movie_list()
+                self.save_genres('movie_genres', genres)
+                return genres 
 
     def load_genres(self, genre):
         try:
@@ -724,6 +745,8 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
         file.uniqueProperty(Property('DATE_RELEASED', episode_details['air_date']))
         file.changes = True
         self.update_metadata_display(file.metadata)
+        print ("Allow more lookups.")
+        self.media_file_metadata_lookup_btn.setEnabled(True)
 
     def media_file_fill_movie_tags(self, movie):
         index = self.media_file_view.selectionModel().currentIndex()
@@ -748,11 +771,15 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
         tags['crew'] = self.media_file_fill_crew_tags(file, movie['credits']['crew'])
         file.changes = True
         self.update_metadata_display(file.metadata)
+        print ("Allow more lookups.")
+        self.media_file_metadata_lookup_btn.setEnabled(True)
 
     #
     # Metadata searchs/functions
     #
     def media_file_lookup_tvshow(self):
+        print ("Disable lookups")
+        self.media_file_metadata_lookup_btn.setEnabled(False)
         term = self.media_file_tvshow.text()
         if term:
             tv = TV()
@@ -762,8 +789,9 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
                 show = tv.details(tmdb_id)
                 self.media_file_fill_show_tags(show)
             else:
-                self.resultsDialog = SearchResults(results)
+                self.resultsDialog = SearchResults(results, self.tmdb)
                 self.resultsDialog.buttonBox.accepted.connect(self.media_file_selected_show)
+                self.resultsDialog.buttonBox.rejected.connect(self.search_dialog_cancel)
 
     def media_file_selected_show(self):
         item = self.resultsDialog.getSelectedResult()
@@ -773,6 +801,8 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
         self.media_file_fill_show_tags(show)
 
     def media_file_lookup_movie(self):
+        print ("Disable lookups?")
+        self.media_file_metadata_lookup_btn.setEnabled(False)
         term = self.media_file_title.text()
         if term:
             search = Search()
@@ -786,8 +816,9 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
                 details = movie.details(results[0]['id'], append_to_response='credits')
                 self.media_file_fill_movie_tags(details)
             else:
-                self.resultsDialog = SearchResults(results)
+                self.resultsDialog = SearchResults(results, self.tmdb)
                 self.resultsDialog.buttonBox.accepted.connect(self.media_file_selected_movie)
+                self.resultsDialog.buttonBox.rejected.connect(self.search_dialog_cancel)
 
     def media_file_selected_movie(self):
         item = self.resultsDialog.getSelectedResult()
@@ -795,6 +826,10 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
         movie = Movie()
         details = movie.details(tmdb_id, append_to_response = 'credits')
         self.media_file_fill_movie_tags(details)
+
+    def search_dialog_cancel(self):
+        print ("Dialog cancelled")
+        self.media_file_metadata_lookup_btn.setEnabled(True)
 
 #
 # Signals
@@ -806,8 +841,9 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
             file = self.model.mediafiles[index.row()]
             self.media_file_file_path.setText(file.metadata['file_path'])
             self.media_file_media_types.setEnabled(True)
-            self.media_file_metadata_lookup_btn.setEnabled(True)        
             self.update_metadata_display(file.get_media_file_metadata())
+            if self.tmdb:
+                self.button_frame.setEnabled(True)
 
     def media_file_media_types_activated(self, index):
         media_type = int(self.media_file_media_types.itemData(index))
@@ -838,6 +874,8 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
     def media_file_metadata_lookup (self):
         media_type_name = self.media_file_media_types.currentText()
         media_type = self.media_file_media_types.itemData(self.media_file_media_types.currentIndex())
+        print ("Disable additional lookups")
+        self.media_file_metadata_lookup_btn.setEnabled(False)
         if media_type == 10:
             self.media_file_lookup_tvshow()
         elif media_type == 9:
@@ -900,12 +938,18 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
         # nothing selected.
 
     def open_file(self, files, progress_callback):
+        file_count = len(files)
+        print (f"Open {file_count} files")
+        count = 1
         for file in files:
             mediafile = MediaFile(file)
-            progress_callback.emit(mediafile)
+            progress_callback.emit((mediafile, count))
+            count += 1
         return
 
-    def add_file(self, mediafile):
+    def add_file(self, progress):
+        mediafile, count = progress
+        print (f"open file #{count}")
         self.model.mediafiles.append(mediafile)
         self.model.layoutChanged.emit()
 
