@@ -25,7 +25,7 @@
    </property>
    <layout class="QGridLayout" name="centralLayout" columnstretch="0,1">
     <item row="5" column="1" alignment="Qt::AlignRight">
-     <widget class="QFrame" name="frame">
+     <widget class="QFrame" name="button_frame">
       <property name="frameShape">
        <enum>QFrame::NoFrame</enum>
       </property>
@@ -50,6 +50,9 @@
        </property>
        <item>
         <widget class="QPushButton" name="media_file_metadata_lookup_btn">
+         <property name="enabled">
+          <bool>true</bool>
+         </property>
          <property name="sizePolicy">
           <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
            <horstretch>0</horstretch>
